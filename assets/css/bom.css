@@ -1,0 +1,90 @@
+.bom {
+  display: grid;
+  gap: 16px;
+}
+
+.bom-section h2 {
+  margin-bottom: 12px;
+}
+
+.bom-section-note {
+  margin-bottom: 12px;
+  max-width: 860px;
+  color: var(--muted);
+}
+
+.table-wrap {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 10px 9px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 720;
+}
+
+code {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: #eef0ec;
+}
+
+.formula-disclosure {
+  position: relative;
+  width: max-content;
+}
+
+.formula-disclosure summary {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--muted);
+  background: var(--bg);
+  font-weight: 800;
+  list-style: none;
+}
+
+.formula-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.formula-disclosure[open] code {
+  position: absolute;
+  z-index: 5;
+  top: 34px;
+  right: 0;
+  width: max-content;
+  max-width: min(300px, 80vw);
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  white-space: normal;
+}
+
+a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+

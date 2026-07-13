@@ -1,0 +1,268 @@
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.export-actions > * {
+  min-height: 44px;
+}
+
+button {
+  padding: 9px 13px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  cursor: pointer;
+  color: #fff;
+  background: var(--accent);
+  font: inherit;
+  font-weight: 700;
+}
+
+.export-select-label select {
+  height: 100%;
+  min-width: 150px;
+  padding: 9px 36px 9px 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  background: #fff;
+  font: inherit;
+  font-weight: 650;
+}
+
+.mobile-export-note {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.wood-sheet-controls {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.wood-sheet-controls label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.wood-sheet-controls input[type="number"] {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  background: #fff;
+  font: inherit;
+}
+
+.checkbox-control {
+  align-content: end;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  padding-bottom: 2px;
+}
+
+.checkbox-control input {
+  width: 18px;
+  height: 18px;
+}
+
+.wood-sheet-result {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+.wood-sheet-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+
+.wood-sheet-summary strong {
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.wood-sheet-summary span {
+  color: var(--muted);
+}
+
+.wood-sheet-summary.is-warning {
+  background: #fff6e8;
+}
+
+.wood-sheet-summary.is-warning strong {
+  color: #8a5417;
+}
+
+.calc-explanation,
+.calc-warnings {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.calc-warnings {
+  color: #8a5417;
+}
+
+.sheet-cards {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.sheet-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.sheet-card h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.sheet-layout-svg {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  margin-bottom: 10px;
+}
+
+.sheet-board {
+  fill: #fffdf7;
+  stroke: var(--wood-edge);
+  stroke-width: 2;
+}
+
+.sheet-piece {
+  fill: var(--wood);
+  stroke: var(--wood-edge);
+  stroke-width: 1.5;
+}
+
+.sheet-piece-number {
+  fill: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: rgba(255, 253, 247, 0.92);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.sheet-cut-line {
+  fill: none;
+  stroke: #447fbd;
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+  vector-effect: non-scaling-stroke;
+}
+
+.sheet-cut-line.is-batch {
+  stroke: #356fa9;
+  stroke-dasharray: 3 4;
+}
+
+.sheet-cut-number {
+  fill: #447fbd;
+  font-size: 14px;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: #fffdf7;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.cut-plan {
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.cut-plan summary {
+  padding: 10px 12px;
+  color: var(--text);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cut-plan > p {
+  margin: 0;
+  padding: 0 12px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cut-plan ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0 12px 12px;
+  list-style: none;
+}
+
+.cut-plan li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.cut-step-number {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #447fbd;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.cut-plan li div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cut-plan li span:last-child {
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+

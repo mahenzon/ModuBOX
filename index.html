@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Wood Case v2 Configurator</title>
+    <link rel="stylesheet" href="assets/css/base.css">
+    <link rel="stylesheet" href="assets/css/preview.css">
+    <link rel="stylesheet" href="assets/css/calculator.css">
+    <link rel="stylesheet" href="assets/css/bom.css">
+    <link rel="stylesheet" href="assets/css/responsive.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <h1>Wood Case v2 Configurator</h1>
+        <p>Choose dimensions, preview the case, and export a bill of materials.</p>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <div class="workflow-step" aria-labelledby="step-configure-title">
+        <span class="workflow-step-number" aria-hidden="true">1</span>
+        <div>
+          <h2 id="step-configure-title">Choose your case size</h2>
+          <p>Start with the wood thickness and the number of ModuBOX units the case must hold.</p>
+        </div>
+      </div>
+
+      <section class="panel controls-panel" aria-labelledby="controls-title">
+        <h2 id="controls-title">Case configuration</h2>
+        <div id="controls" class="controls"></div>
+      </section>
+
+      <section id="summary" class="summary" aria-label="Configuration summary"></section>
+
+      <div class="workflow-step" aria-labelledby="step-review-title">
+        <span class="workflow-step-number" aria-hidden="true">2</span>
+        <div>
+          <h2 id="step-review-title">Review the case</h2>
+          <p>Check the finished dimensions and construction before planning materials.</p>
+        </div>
+      </div>
+
+      <section class="panel preview-panel" aria-labelledby="preview-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="preview-title">Live Preview</h2>
+            <p>Drag freely around the case—including underneath—scroll to zoom, and open it to inspect the 55 mm ModuBOX grid.</p>
+          </div>
+          <div class="model-toolbar" aria-label="3D preview controls">
+            <label class="preview-toggle">
+              <input id="openCaseModel" type="checkbox" checked>
+              <span>Open case</span>
+            </label>
+            <button type="button" id="resetModelView" class="secondary-action">Reset view</button>
+          </div>
+        </div>
+        <div class="model-stage">
+          <div id="model3d" class="model3d" aria-label="Interactive 3D case model"></div>
+          <details id="modelDimensions" class="model-dimensions" open>
+            <summary>
+              <span><strong>Dimensions</strong><small>Selected size and wood panels</small></span>
+            </summary>
+            <div id="modelDimensionsContent" class="model-dimensions-content" aria-live="polite"></div>
+          </details>
+        </div>
+        <div id="preview" class="preview"></div>
+      </section>
+
+      <div class="workflow-step" aria-labelledby="step-materials-title">
+        <span class="workflow-step-number" aria-hidden="true">3</span>
+        <div>
+          <h2 id="step-materials-title">Plan your materials</h2>
+          <p>Use the generated parts list first, then calculate how many wood sheets to buy.</p>
+        </div>
+      </div>
+
+      <section id="bom" class="bom" aria-label="Bill of materials"></section>
+
+      <section class="panel wood-sheet-panel" aria-labelledby="wood-sheet-title">
+        <div class="section-heading">
+          <h2 id="wood-sheet-title">Wood Sheet Calculator</h2>
+          <p>Estimate how many store-bought wood sheets are needed for the current cut list.</p>
+        </div>
+        <div class="wood-sheet-controls">
+          <label>
+            <span>Case sets</span>
+            <input class="wood-sheet-input" id="caseSetCount" type="number" min="1" max="6" step="1" value="1">
+            <span>complete wood cut lists</span>
+          </label>
+          <label>
+            <span>Sheet length</span>
+            <input class="wood-sheet-input" id="sheetLengthMm" type="number" min="1" step="1" value="1000">
+            <span>mm</span>
+          </label>
+          <label>
+            <span>Sheet width</span>
+            <input class="wood-sheet-input" id="sheetWidthMm" type="number" min="1" step="1" value="500">
+            <span>mm</span>
+          </label>
+          <label>
+            <span>Kerf / gap</span>
+            <input class="wood-sheet-input" id="sheetKerfMm" type="number" min="0" step="0.5" value="3">
+            <span>mm</span>
+          </label>
+          <label class="checkbox-control">
+            <input class="wood-sheet-input" id="allowPartRotation" type="checkbox" checked>
+            <span>Allow rotating parts</span>
+          </label>
+          <label class="checkbox-control" title="Group matching panels, prefer fewer cuts, and show a numbered edge-to-edge cutting order.">
+            <input class="wood-sheet-input" id="cutThroughOnly" type="checkbox">
+            <span>Cut-through cuts only</span>
+          </label>
+        </div>
+        <div id="woodSheetResult" class="wood-sheet-result"></div>
+      </section>
+
+      <div class="workflow-step" aria-labelledby="step-export-title">
+        <span class="workflow-step-number" aria-hidden="true">4</span>
+        <div>
+          <h2 id="step-export-title">Save your build list</h2>
+          <p>Export the final configuration and take it to the workshop.</p>
+        </div>
+      </div>
+
+      <section class="panel export-panel" aria-labelledby="export-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="export-title">Download your build list</h2>
+            <p>PDF and Markdown are ready to share or keep with the project.</p>
+          </div>
+        </div>
+        <div class="export-actions">
+          <button type="button" id="printBom" class="primary-action">Save / Print PDF</button>
+          <button type="button" id="downloadMarkdown" class="primary-action">Download Markdown</button>
+          <label class="export-select-label" for="exportFormat">
+            <span class="sr-only">Additional export format</span>
+            <select id="exportFormat" aria-label="Additional export format">
+              <option value="">Export as…</option>
+              <option value="csv">CSV</option>
+              <option value="json">JSON</option>
+            </select>
+          </label>
+        </div>
+        <p class="mobile-export-note">On mobile, PDF opens the system print/share sheet. Choose “Save as PDF” or share it to another app.</p>
+      </section>
+    </main>
+
+    <script src="assets/js/catalog.js"></script>
+    <script src="assets/vendor/three.min.js"></script>
+    <script src="assets/js/model3d.js"></script>
+    <script src="assets/js/core.js"></script>
+    <script src="assets/js/preview.js"></script>
+    <script src="assets/js/sheet-planner.js"></script>
+    <script src="assets/js/renderers.js"></script>
+    <script src="assets/js/app.js"></script>
+  </body>
+</html>
