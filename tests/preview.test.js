@@ -852,8 +852,8 @@ test("manifest preserves measured families and approved production-rule provenan
     [16, bottom.nominalPanelSizeMm[1] - 16],
     [bottom.nominalPanelSizeMm[0] - 16, bottom.nominalPanelSizeMm[1] - 16],
   ]);
-  assert(bottom.holes.every((hole) => hole.baseDiameterMm === 3.9));
-  assert(bottom.holes.every((hole) => hole.exportedDiameterMm === 4));
+  assert(bottom.holes.every((hole) => hole.baseDiameterMm === 3));
+  assert(bottom.holes.every((hole) => hole.exportedDiameterMm === 3.1));
   assert(bottom.holes.every((hole) => hole.sourceRuleId === "bottom-four-corners-t-plus-10"));
   assert(bottom.holes.every((hole) => hole.provenance === "explicit-product-rule"));
   const lid = exported.manifest.semanticPanels.find((panel) => panel.role === "lid");

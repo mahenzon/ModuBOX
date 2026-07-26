@@ -12,7 +12,7 @@
   if (!core) throw new Error("WOODCASE_CORE is required");
   const { buildBom } = core;
 
-  const RULE_VERSION = "woodcase-v2-phase2-2026-07-26-r2";
+  const RULE_VERSION = "woodcase-v2-phase2-2026-07-26-r3";
   const DEFAULT_CLEARANCE_DIAMETER_MM = 0.1;
   const MIN_CLEARANCE_DIAMETER_MM = -1;
   const MAX_CLEARANCE_DIAMETER_MM = 1;
@@ -21,7 +21,7 @@
     side: Object.freeze({ baseDiameterMm: 3 }),
     lidFront: Object.freeze({ baseDiameterMm: 3.5 }),
     lidHinge: Object.freeze({ baseDiameterMm: 3.5 }),
-    bottom: Object.freeze({ baseDiameterMm: 3.9 }),
+    bottom: Object.freeze({ baseDiameterMm: 3 }),
   });
 
   function roundMm(value) {
