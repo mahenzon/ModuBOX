@@ -32,6 +32,7 @@
       for (let index = 1; index <= part.quantity; index += 1) {
         basePieces.push({
           id: `${part.id}-${index}`,
+          partId: part.id,
           item: part.item,
           partCopy: index,
           lengthMm: part.lengthMm,
@@ -536,6 +537,9 @@
             shortSideWaste: Math.min(freeRect.width - orientation.width, freeRect.height - orientation.height),
             longSideWaste: Math.max(freeRect.width - orientation.width, freeRect.height - orientation.height),
           };
+          if (placementOverlaps(candidate.placement, sheet, options.kerfMm)) {
+            continue;
+          }
           if (
             !best ||
             candidate.areaWaste < best.areaWaste ||
@@ -636,12 +640,16 @@
     });
   }
 
+  function cloneWoodSheetPlan(plan) {
+    return JSON.parse(JSON.stringify(plan));
+  }
+
   function rememberWoodSheetPlan(key, plan) {
     woodSheetPlanCache.set(key, plan);
     if (woodSheetPlanCache.size > 30) {
       woodSheetPlanCache.delete(woodSheetPlanCache.keys().next().value);
     }
-    return plan;
+    return cloneWoodSheetPlan(plan);
   }
 
   function calculateWoodSheetPlan(bomInput, optionsInput) {
@@ -652,7 +660,7 @@
     );
     const cacheKey = getWoodSheetCacheKey(pieces, options);
     if (woodSheetPlanCache.has(cacheKey)) {
-      return woodSheetPlanCache.get(cacheKey);
+      return cloneWoodSheetPlan(woodSheetPlanCache.get(cacheKey));
     }
     const totalPieceAreaMm2 = pieces.reduce((sum, piece) => sum + piece.areaMm2, 0);
     const totalSheetAreaMm2 = options.sheetLengthMm * options.sheetWidthMm;
