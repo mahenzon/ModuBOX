@@ -179,8 +179,8 @@
               <details class="dxf-technical-details">
                 <summary>DXF technical details</summary>
                 <div>
-                  <p><strong>Full ZIP:</strong> each <code>sheet-XX-xN.dxf</code> is a unique physical-sheet layout; <code>xN</code> is the number of identical sheets to cut.</p>
-                  <p><strong>Separate ZIP:</strong> contains <code>front-xN.dxf</code>, <code>back-xN.dxf</code>, <code>sides-x2N.dxf</code>, <code>lid-xN.dxf</code>, and <code>bottom-xN.dxf</code>.</p>
+                  <p><strong>Full ZIP:</strong> each file uses a configuration-rich name such as <code>sheet-01-6W-5D-4H-6mm-xN.dxf</code>; <code>xN</code> is the number of identical sheets to cut.</p>
+                  <p><strong>Separate ZIP:</strong> each role uses the same pattern, such as <code>front-6W-5D-4H-6mm-xN.dxf</code> or <code>bottom-6W-5D-4H-6mm-xN.dxf</code>.</p>
                   <p><strong>Cut order:</strong> in your laser software, cut <strong>CUT_HOLES_FIRST</strong> before <strong>CUT_OUTLINES_LAST</strong>. Physical DXFs contain cut geometry only.</p>
                   <p><strong>Kerf:</strong> the 0.10 mm Full-export minimum is only a validation floor, not a universally safe production gap. Inspect compensated toolpaths in your laser/CAM software.</p>
                 </div>

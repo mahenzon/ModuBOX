@@ -409,13 +409,14 @@ test("all 420 configurations share exact panel geometry across preview and separ
           const preview = app.renderPreviewSvg(bom.configuration, bom, geometry);
           assert.equal((preview.match(/class="panel-cut-hole"/g) || []).length, geometry.holeCount);
           const caseSetCount = checked % 6 + 1;
+          const dimensionStem = `${W}W-${D}D-${H}H-${t}mm`;
           const files = dxfExport.createSeparateDxfFiles(bom, caseSetCount, geometry);
           assert.deepEqual(files.map((file) => file.filename), [
-            `front-x${caseSetCount}.dxf`,
-            `back-x${caseSetCount}.dxf`,
-            `sides-x${caseSetCount * 2}.dxf`,
-            `lid-x${caseSetCount}.dxf`,
-            `bottom-x${caseSetCount}.dxf`,
+            `front-${dimensionStem}-x${caseSetCount}.dxf`,
+            `back-${dimensionStem}-x${caseSetCount}.dxf`,
+            `sides-${dimensionStem}-x${caseSetCount * 2}.dxf`,
+            `lid-${dimensionStem}-x${caseSetCount}.dxf`,
+            `bottom-${dimensionStem}-x${caseSetCount}.dxf`,
           ]);
           files.forEach((file) => assertCutDxf(file.content, [file.part]));
           checked += 1;
@@ -459,7 +460,27 @@ test("clearance changes diameters only and preserves every feature base diameter
             ],
           );
           const front = baseline.parts[0];
-          assert.equal(front.holes.some((hole) => hole.ruleId === "front-only-handle-pair"), H >= 3);
+          const handleHoles = front.holes
+            .filter((hole) => hole.ruleId === "front-only-handle-pair");
+          const handleYMm = app.roundMm(front.heightMm - 44.4);
+          assert.deepEqual(
+            handleHoles
+              .map((hole) => [hole.xMm, hole.yMm])
+              .sort((a, b) => a[0] - b[0]),
+            H === 2
+              ? []
+              : [
+                  [64.3, handleYMm],
+                  [98, handleYMm],
+                  [front.widthMm - 98, handleYMm],
+                  [front.widthMm - 64.3, handleYMm],
+                ],
+          );
+          assert(handleHoles.every(
+            (hole) => hole.productionOverride === "user-confirmed-front-handle-hole-rule",
+          ));
+          const back = baseline.parts[1];
+          assert.equal(back.holes.some((hole) => hole.ruleId === "front-only-handle-pair"), false);
           if (H === 2 && W <= 6) {
             assert.equal(
               front.holes.filter((hole) => hole.productionOverride === "add-missing-local-circle-at-12-6").length,
@@ -546,12 +567,12 @@ test("Full laser export ignores cut-through mode and emits grouped cut-only shee
   assert.equal(previewA, previewB);
 
   const exported = dxfExport.createFullDxfExport(bom, compact);
-  assert.equal(exported.filename, "woodcase-9mm-6x5-3h-3sets-full-dxf.zip");
+  assert.equal(exported.filename, "woodcase-6W-5D-3H-9mm-3sets-full-dxf.zip");
   assert.equal(exported.mimeType, "application/zip");
   const entries = parseStoredZipEntries(exported.content);
   assert.deepEqual([...entries.keys()], [...compact.groups.map((group) => group.filename), "manifest.json"]);
   compact.groups.forEach((group) => {
-    assert.match(group.filename, /^sheet-\d{2}-x\d+\.dxf$/);
+    assert.match(group.filename, /^sheet-\d{2}-6W-5D-3H-9mm-x\d+\.dxf$/);
     assertCutDxf(entries.get(group.filename), group.representative.panels);
     const entities = parseDxfEntities(entries.get(group.filename));
     assertNoCoincidentPolylineEdges(
@@ -581,7 +602,7 @@ test("Full laser export ignores cut-through mode and emits grouped cut-only shee
     assert.equal(file.quantity, file.physicalSheetInstances.length);
     assert.match(
       file.filename,
-      new RegExp(`^sheet-${String(file.ordinal).padStart(2, "0")}-x${file.quantity}\\.dxf$`),
+      new RegExp(`^sheet-${String(file.ordinal).padStart(2, "0")}-6W-5D-3H-9mm-x${file.quantity}\\.dxf$`),
     );
   });
   assert.match(manifest.panelGeometrySha256, /^[0-9a-f]{64}$/);
@@ -638,12 +659,21 @@ test("duplicate physical sheet layouts group in deterministic first-seen order",
   sameCutsDifferentTransform.physicalSheetIndex = 4;
   distinct.panels[0].holes[0].xMm += 0.25;
   sameCutsDifferentTransform.panels[0].transform.translationMm[0] += 0.25;
+  assert.throws(
+    () => dxfExport.groupSheetLayouts({ sheets: [first] }),
+    /require complete W, D, H, and material thickness/,
+  );
   const groups = dxfExport.groupSheetLayouts({
+    configuration: layout.geometry.configuration,
     sheets: [first, duplicate, distinct, sameCutsDifferentTransform],
   });
   assert.deepEqual(
     groups.map((group) => group.filename),
-    ["sheet-01-x2.dxf", "sheet-02-x1.dxf", "sheet-03-x1.dxf"],
+    [
+      "sheet-01-5W-5D-2H-6mm-x2.dxf",
+      "sheet-02-5W-5D-2H-6mm-x1.dxf",
+      "sheet-03-5W-5D-2H-6mm-x1.dxf",
+    ],
   );
   assert.deepEqual(
     groups.map((group) => group.physicalSheets.map((sheet) => sheet.physicalSheetIndex)),
@@ -752,17 +782,17 @@ test("Full export accepts only intact layouts from the matching preview calculat
   assert.equal(direct.layout.plan.cutThroughOnly, false);
 });
 
-test("separate archive uses concise semantic filenames and an external manifest", () => {
+test("separate archive uses configuration-rich semantic filenames and an external manifest", () => {
   const bom = app.buildBom({ materialThicknessMm: 12, widthBoxes: 8, depthBoxes: 7, heightLevel: 6 });
   const exported = dxfExport.createSeparateDxfExport(bom, 3, 0.1);
-  assert.equal(exported.filename, "woodcase-12mm-8x7-6h-3sets-separate-dxf.zip");
+  assert.equal(exported.filename, "woodcase-8W-7D-6H-12mm-3sets-separate-dxf.zip");
   const entries = parseStoredZipEntries(exported.content);
   assert.deepEqual([...entries.keys()], [
-    "front-x3.dxf",
-    "back-x3.dxf",
-    "sides-x6.dxf",
-    "lid-x3.dxf",
-    "bottom-x3.dxf",
+    "front-8W-7D-6H-12mm-x3.dxf",
+    "back-8W-7D-6H-12mm-x3.dxf",
+    "sides-8W-7D-6H-12mm-x6.dxf",
+    "lid-8W-7D-6H-12mm-x3.dxf",
+    "bottom-8W-7D-6H-12mm-x3.dxf",
     "manifest.json",
   ]);
   exported.files.filter((file) => file.filename.endsWith(".dxf")).forEach((file) => {
@@ -785,7 +815,11 @@ test("separate archive uses concise semantic filenames and an external manifest"
     });
   });
   assert.match(manifest.panelGeometrySha256, /^[0-9a-f]{64}$/);
-  assert.equal(manifest.files.find((file) => file.filename === "sides-x6.dxf").representedPanels.length, 2);
+  assert.equal(
+    manifest.files.find((file) => file.filename === "sides-8W-7D-6H-12mm-x6.dxf")
+      .representedPanels.length,
+    2,
+  );
 });
 
 test("manifest preserves measured families and approved production-rule provenance", () => {
@@ -949,7 +983,7 @@ test("Cutting block shares layout settings and keeps saw and laser controls scop
   assert.match(html, /panel spacing for Full DXF \(minimum 0.10 mm\)/);
   assert.match(html, /CUT_HOLES_FIRST/);
   assert.match(html, /CUT_OUTLINES_LAST/);
-  assert.match(html, /front-xN\.dxf/);
+  assert.match(html, /front-6W-5D-4H-6mm-xN\.dxf/);
   assert.match(html, /id="dxfExportStatus"[^>]*aria-live="polite"[^>]*aria-atomic="true"/);
   assert.match(html, /id="dxfLaserPreview"[^>]*role="region"[^>]*aria-labelledby="full-dxf-preview-title"/);
   assert(!html.match(/id="dxfLaserPreview"[^>]*aria-live/));

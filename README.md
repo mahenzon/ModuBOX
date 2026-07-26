@@ -13,14 +13,17 @@ An interactive 3D preview helps you understand the finished case before building
 ## DXF exports
 
 **DXF — Full** downloads one cut-only DXF per unique physical sheet layout plus a
-manifest. Repeated identical layouts are grouped as `sheet-XX-xN.dxf`. Full laser
-packing uses the calculator's case count, sheet size, nesting gap, and rotation
-setting, but ignores **Cut-through cuts only**, which is reserved for saw/guillotine
-layouts. The nesting gap must be at least 0.10 mm; that minimum is a validation
-floor, not a universal safe value for every machine and CAM setup.
+manifest. Repeated identical layouts are grouped with configuration-rich names,
+such as `sheet-01-6W-5D-4H-6mm-xN.dxf`. Full laser packing uses the calculator's
+case count, sheet size, nesting gap, and rotation setting, but ignores
+**Cut-through cuts only**, which is reserved for saw/guillotine layouts. The nesting
+gap must be at least 0.10 mm; that minimum is a validation floor, not a universal
+safe value for every machine and CAM setup.
 
-**DXF — All separate** downloads `front-xN.dxf`, `back-xN.dxf`,
-`sides-x2N.dxf`, `lid-xN.dxf`, and `bottom-xN.dxf`, plus a manifest.
+**DXF — All separate** uses names such as `front-6W-5D-4H-6mm-xN.dxf`,
+`back-6W-5D-4H-6mm-xN.dxf`, `sides-6W-5D-4H-6mm-x2N.dxf`,
+`lid-6W-5D-4H-6mm-xN.dxf`, and `bottom-6W-5D-4H-6mm-xN.dxf`, plus a
+manifest.
 
 DXF coordinates are millimeters in an outside-face, lower-left coordinate frame.
 True hole circles are on `CUT_HOLES_FIRST`, and closed nominal panel outlines are

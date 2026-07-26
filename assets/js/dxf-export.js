@@ -39,14 +39,21 @@
       return result;
     }
 
+    function configDimensionStem(config) {
+      const values = [
+        config && config.widthBoxes,
+        config && config.depthBoxes,
+        config && config.heightLevel,
+        config && config.materialThicknessMm,
+      ];
+      if (!values.every(Number.isFinite)) {
+        throw new Error("DXF filenames require complete W, D, H, and material thickness");
+      }
+      return `${config.widthBoxes}W-${config.depthBoxes}D-${config.heightLevel}H-${config.materialThicknessMm}mm`;
+    }
+
     function configFilenameStem(bom) {
-      const config = bom.configuration || {};
-      return [
-        "woodcase",
-        `${config.materialThicknessMm}mm`,
-        `${config.widthBoxes}x${config.depthBoxes}`,
-        `${config.heightLevel}h`,
-      ].join("-");
+      return `woodcase-${configDimensionStem(bom.configuration || {})}`;
     }
 
     function geometryManifestFields(geometry) {
@@ -173,7 +180,7 @@
       return specifications.map(([name, role, quantity, representedRoles]) => {
         const part = byRole.get(role);
         return {
-          filename: `${name}-x${quantity}.dxf`,
+          filename: `${name}-${configDimensionStem(geometry.configuration)}-x${quantity}.dxf`,
           content: dxfWriter.createCutDxf([part]),
           quantity,
           representedRoles,
@@ -247,7 +254,7 @@
       });
       groups.forEach((group) => {
         group.quantity = group.physicalSheets.length;
-        group.filename = `sheet-${String(group.ordinal).padStart(2, "0")}-x${group.quantity}.dxf`;
+        group.filename = `sheet-${String(group.ordinal).padStart(2, "0")}-${configDimensionStem(sheetGeometry.configuration)}-x${group.quantity}.dxf`;
       });
       return groups;
     }

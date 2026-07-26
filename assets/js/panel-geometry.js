@@ -12,7 +12,7 @@
   if (!core) throw new Error("WOODCASE_CORE is required");
   const { buildBom } = core;
 
-  const RULE_VERSION = "woodcase-v2-phase2-2026-07-26";
+  const RULE_VERSION = "woodcase-v2-phase2-2026-07-26-r2";
   const DEFAULT_CLEARANCE_DIAMETER_MM = 0.1;
   const MIN_CLEARANCE_DIAMETER_MM = -1;
   const MAX_CLEARANCE_DIAMETER_MM = 1;
@@ -135,9 +135,14 @@
     addReflected("upper-outer", "front-back-upper-pair", 57.5, F - 11.8);
     addReflected("upper-inner", "front-back-upper-pair", 79.5, F - 11.8);
     if (includeHandle && config.heightLevel >= 3) {
-      const yMm = config.heightLevel === 3 ? F / 2 - 8.4 : F / 2 - 6.4;
-      addReflected("handle-outer", "front-only-handle-pair", L / 2 - 100.7, yMm);
-      addReflected("handle-inner", "front-only-handle-pair", L / 2 - 67, yMm);
+      const yMm = F - 44.4;
+      const metadata = {
+        provenance: "explicit-product-rule",
+        rawSourcePresent: false,
+        productionOverride: "user-confirmed-front-handle-hole-rule",
+      };
+      addReflected("handle-outer", "front-only-handle-pair", 64.3, yMm, metadata);
+      addReflected("handle-inner", "front-only-handle-pair", 98, yMm, metadata);
     }
     return holes;
   }
