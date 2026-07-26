@@ -885,7 +885,31 @@ test("Separate export rejects cross-configuration or modified preview geometry",
   assert.equal(dxfExport.createSeparateDxfExport(bom, 1, geometry).geometry, geometry);
 });
 
-test("saved version-1 preferences preserve sheet dimensions and default old DXF clearance", () => {
+test("new browsers start with the 6 mm, 6W, 5D, 4H case configuration", () => {
+  const expected = {
+    materialThicknessMm: 6,
+    widthBoxes: 6,
+    depthBoxes: 5,
+    heightLevel: 4,
+  };
+  assert.deepEqual(app.getDefaultConfig(), expected);
+  assert.equal(app.loadPreferences({ getItem() { return null; } }), null);
+  const controls = { innerHTML: "" };
+  app.renderControls({
+    getElementById(id) {
+      assert.equal(id, "controls");
+      return controls;
+    },
+  });
+  for (const [key, value] of Object.entries(expected)) {
+    assert.match(
+      controls.innerHTML,
+      new RegExp(`name="${key}"[^>]*value="${value}"[^>]*checked`),
+    );
+  }
+});
+
+test("saved version-1 preferences preserve configuration and default old DXF clearance", () => {
   const storage = {
     getItem() {
       return JSON.stringify({
@@ -903,6 +927,12 @@ test("saved version-1 preferences preserve sheet dimensions and default old DXF 
     },
   };
   const preferences = app.loadPreferences(storage);
+  assert.deepEqual(preferences.config, {
+    materialThicknessMm: 8,
+    widthBoxes: 7,
+    depthBoxes: 6,
+    heightLevel: 4,
+  });
   assert.equal(preferences.woodSheet.sheetLengthMm, 1220);
   assert.equal(preferences.woodSheet.sheetWidthMm, 610);
   assert.equal(preferences.dxf.clearanceDiameterMm, 0.1);

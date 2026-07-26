@@ -15,7 +15,7 @@
       materialThicknessMm: {
         label: "Material thickness",
         values: [6, 7, 8, 9, 10, 11, 12],
-        defaultValue: 9,
+        defaultValue: 6,
         unit: "mm",
       },
       widthBoxes: {
@@ -33,7 +33,7 @@
       heightLevel: {
         label: "Height",
         values: [2, 3, 4, 5, 6],
-        defaultValue: 3,
+        defaultValue: 4,
         unit: "H",
       },
     },
