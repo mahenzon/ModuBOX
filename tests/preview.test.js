@@ -1085,6 +1085,8 @@ test("Cutting block shares layout settings and keeps saw and laser controls scop
   assert.match(html, /panel spacing for Full DXF \(minimum 0.10 mm\)/);
   assert.match(html, /CUT_HOLES_FIRST/);
   assert.match(html, /CUT_OUTLINES_LAST/);
+  assert.match(html, /AutoCAD R12 \(<code>AC1009<\/code>\) ASCII/);
+  assert.match(html, /Choose <strong>millimeters<\/strong> if your importer asks for units/);
   assert.match(html, /front-6W-5D-4H-6mm-xN\.dxf/);
   assert.match(html, /id="dxfExportStatus"[^>]*aria-live="polite"[^>]*aria-atomic="true"/);
   assert.match(html, /id="dxfLaserPreview"[^>]*role="region"[^>]*aria-labelledby="full-dxf-preview-title"/);

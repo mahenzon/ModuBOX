@@ -25,12 +25,15 @@ safe value for every machine and CAM setup.
 `lid-6W-5D-4H-6mm-xN.dxf`, and `bottom-6W-5D-4H-6mm-xN.dxf`, plus a
 manifest.
 
-DXF coordinates are millimeters in an outside-face, lower-left coordinate frame.
-True hole circles are on `CUT_HOLES_FIRST`, and closed nominal panel outlines are
-on `CUT_OUTLINES_LAST`. Every physical DXF contains cut geometry only, with all
-holes serialized before outlines. The hole control adjusts each feature's base
-diameter once; the exporter applies no beam-kerf compensation to holes or outlines.
-Configure actual laser kerf in CAM.
+DXFs use the broadly compatible AutoCAD R12 (`AC1009`) ASCII format, including
+legacy `POLYLINE` outlines accepted by CorelDRAW. Coordinates are authored in
+millimeters in an outside-face, lower-left coordinate frame. R12 does not reliably
+carry modern insertion-unit metadata, so choose **millimeters** if your importer
+asks for units. True hole circles are on `CUT_HOLES_FIRST`, and closed nominal
+panel outlines are on `CUT_OUTLINES_LAST`. Every physical DXF contains cut
+geometry only, with all holes serialized before outlines. The hole control adjusts
+each feature's base diameter once; the exporter applies no beam-kerf compensation
+to holes or outlines. Configure actual laser kerf in CAM.
 
 The project exists to make customizing and planning a ModuBOX case simpler, clearer, and less error-prone. Everything runs locally in the browser as a static site, so you can use the configurator without uploading measurements or installing specialized software.
 
