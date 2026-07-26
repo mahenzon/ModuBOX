@@ -61,6 +61,11 @@
         ruleVersion: geometry.ruleVersion,
         configuration: geometry.configuration,
         clearanceDiameterMm: geometry.clearanceDiameterMm,
+        dxfFormat: {
+          release: "AutoCAD R12", acadVersion: dxfWriter.DXF_ACAD_VERSION, encoding: "ASCII",
+          unitMetadataEncoded: false, importUnits: dxfWriter.DXF_COORDINATE_UNITS,
+          outlineEncoding: "POLYLINE/VERTEX/SEQEND",
+        },
         clearancePolicy: {
           type: "shared-diametral-adjustment",
           defaultMm: panelGeometry.DEFAULT_CLEARANCE_DIAMETER_MM,
@@ -85,7 +90,7 @@
         holeKerfCompensationMm: 0,
         entityOrder: [
           `${dxfWriter.HOLES_LAYER}: true CIRCLE holes`,
-          `${dxfWriter.OUTLINES_LAYER}: closed panel outlines`,
+          `${dxfWriter.OUTLINES_LAYER}: closed POLYLINE/VERTEX/SEQEND panel outlines`,
         ],
         cutterFilesContain: "cut geometry only",
         hashAlgorithm: "SHA-256",
@@ -193,7 +198,7 @@
       requireCanonicalGeometry(bom, geometry);
       const byRole = new Map(geometry.parts.map((part) => [part.role, part]));
       return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportType: "separate-semantic-panels",
         ...geometryManifestFields(geometry),
         caseSetCount,
@@ -402,7 +407,7 @@
         });
       });
       return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportType: "full-laser-physical-sheets",
         ...geometryManifestFields(layout.geometry),
         caseSetCount: layout.plan.caseSetCount,

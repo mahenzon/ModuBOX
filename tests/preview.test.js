@@ -181,14 +181,21 @@ test("source remains split into focused, bounded files", () => {
   }
 });
 
-function parseDxfEntities(source) {
+function parseDxfPairs(source) {
   const values = source.trim().split(/\r?\n/);
+  assert.equal(values.length % 2, 0, "DXF contains complete code/value pairs");
+  return Array.from({ length: values.length / 2 }, (_entry, index) => ({
+    code: Number(values[index * 2]),
+    value: values[index * 2 + 1],
+  }));
+}
+
+function parseDxfEntities(source) {
+  const pairs = parseDxfPairs(source);
   const entities = [];
   let inEntities = false;
   let current = null;
-  for (let index = 0; index < values.length; index += 2) {
-    const code = Number(values[index]);
-    const value = values[index + 1];
+  for (const { code, value } of pairs) {
     if (code === 2 && value === "ENTITIES") {
       inEntities = true;
       continue;
@@ -208,6 +215,23 @@ function parseDxfEntities(source) {
     }
   }
   return entities;
+}
+
+function parseR12PolylineSequences(entities) {
+  const sequences = [];
+  for (let index = 0; index < entities.length; index += 1) {
+    if (entities[index].type !== "POLYLINE") continue;
+    const header = entities[index];
+    const vertices = [];
+    index += 1;
+    while (entities[index]?.type === "VERTEX") {
+      vertices.push(entities[index]);
+      index += 1;
+    }
+    assert.equal(entities[index]?.type, "SEQEND", "each R12 POLYLINE ends with SEQEND");
+    sequences.push({ header, vertices, seqend: entities[index] });
+  }
+  return sequences;
 }
 
 function parseStoredZipEntries(bytesInput) {
@@ -268,12 +292,13 @@ function assertSheetPlanBoundsAndKerf(plan, context) {
   }
 }
 
-function assertNoCoincidentPolylineEdges(rectangles, context) {
+function assertNoCoincidentPolylineEdges(polylines, context) {
   const seen = new Set();
-  rectangles.forEach((rectangle) => {
-    const xs = rectangle.values.get(10).map(Number);
-    const ys = rectangle.values.get(20).map(Number);
-    const vertices = xs.map((x, index) => [x, ys[index]]);
+  polylines.forEach((polyline) => {
+    const vertices = polyline.vertices.map((vertex) => [
+      Number(vertex.values.get(10)[0]),
+      Number(vertex.values.get(20)[0]),
+    ]);
     vertices.forEach((start, index) => {
       const end = vertices[(index + 1) % vertices.length];
       const ordered = start[0] < end[0] || (start[0] === end[0] && start[1] <= end[1])
@@ -287,39 +312,39 @@ function assertNoCoincidentPolylineEdges(rectangles, context) {
 }
 
 function assertDxfHeaderAndLayers(content) {
-  assert.match(content, /\r\n\$ACADVER\r\n1\r\nAC1015\r\n/);
-  assert.match(content, /\r\n\$INSUNITS\r\n70\r\n4\r\n/);
-  assert.match(content, /\r\n\$MEASUREMENT\r\n70\r\n1\r\n/);
-  assert.match(content, /\r\n\$HANDSEED\r\n5\r\n[0-9A-F]+\r\n/);
-  assert.match(content, /\r\n2\r\nLTYPE\r\n5\r\n1\r\n330\r\n0\r\n100\r\nAcDbSymbolTable\r\n/);
-  assert.match(content, /\r\n2\r\nLAYER\r\n5\r\n3\r\n330\r\n0\r\n100\r\nAcDbSymbolTable\r\n/);
-  assert.match(content, /\r\n2\r\nCUT_HOLES_FIRST\r\n70\r\n0\r\n62\r\n3\r\n6\r\nCONTINUOUS\r\n290\r\n1\r\n/);
-  assert.match(content, /\r\n2\r\nCUT_OUTLINES_LAST\r\n70\r\n0\r\n62\r\n1\r\n6\r\nCONTINUOUS\r\n290\r\n1\r\n/);
+  const pairs = parseDxfPairs(content);
+  assert.equal(dxfExport.DXF_ACAD_VERSION, "AC1009");
+  assert.equal(dxfExport.DXF_COORDINATE_UNITS, "mm");
+  assert.equal(content.replaceAll("\r\n", "").includes("\n"), false, "DXF uses CRLF lines");
+  assert(content.endsWith("0\r\nEOF\r\n"));
+  assert.match(content, /\r\n\$ACADVER\r\n1\r\nAC1009\r\n/);
+  assert(!content.includes("$INSUNITS"), "R12 output does not claim modern insertion units");
+  assert(!content.includes("$MEASUREMENT"), "R12 output keeps the header minimal");
+  assert(!content.includes("$HANDSEED"), "R12 output does not require database handles");
+  assert(!content.includes("BLOCK_RECORD"));
+  assert(!content.includes("\r\n2\r\nBLOCKS\r\n"));
+  assert(!content.includes("LWPOLYLINE"));
+  assert.match(content, /\r\n2\r\nLTYPE\r\n70\r\n1\r\n0\r\nLTYPE\r\n2\r\nCONTINUOUS\r\n/);
+  assert.match(content, /\r\n2\r\nLAYER\r\n70\r\n3\r\n0\r\nLAYER\r\n2\r\n0\r\n/);
+  assert.match(content, /\r\n2\r\nCUT_HOLES_FIRST\r\n70\r\n0\r\n62\r\n3\r\n6\r\nCONTINUOUS\r\n/);
+  assert.match(content, /\r\n2\r\nCUT_OUTLINES_LAST\r\n70\r\n0\r\n62\r\n1\r\n6\r\nCONTINUOUS\r\n/);
   assert(!content.includes("ANNOTATION_DO_NOT_CUT"));
-  const allHandles = [...content.matchAll(/\r\n5\r\n([0-9A-F]+)\r\n/g)]
-    .map((match) => match[1]);
-  assert.equal(new Set(allHandles).size, allHandles.length, "all document handles are unique");
+  const forbiddenDatabasePairs = pairs.filter(({ code }) =>
+    [5, 100, 102, 105, 410].includes(code)
+      || (code >= 320 && code <= 399)
+      || (code >= 420 && code <= 459));
+  assert.deepEqual(
+    forbiddenDatabasePairs,
+    [],
+    "R12 output omits handles, owners, subclasses, and modern object metadata",
+  );
 }
 
 function assertCutDxf(content, panels) {
   assertDxfHeaderAndLayers(content);
   const entities = parseDxfEntities(content);
   const holes = panels.flatMap((panel) => panel.holes);
-  const handles = entities.map((entity) => entity.values.get(5)?.[0]);
-  assert(handles.every(Boolean), "every R2000 entity has a handle");
-  assert.equal(new Set(handles).size, handles.length, "R2000 entity handles are unique");
-  assert.deepEqual(
-    handles,
-    entities.map((_entity, index) => (7 + index).toString(16).toUpperCase()),
-    "entity handles are deterministic and sequential after table handles",
-  );
-  const handseed = content.match(/\r\n\$HANDSEED\r\n5\r\n([0-9A-F]+)\r\n/);
-  assert(handseed);
-  assert.equal(
-    Number.parseInt(handseed[1], 16),
-    7 + entities.length,
-    "$HANDSEED points to the next unused handle",
-  );
+  const outlines = parseR12PolylineSequences(entities);
   const extents = panels.flatMap((panel) => [
     ...panel.outline,
     ...panel.holes.flatMap((hole) => [
@@ -338,7 +363,14 @@ function assertCutDxf(content, panels) {
   assert.deepEqual(extmax.slice(1).map(Number), [extents.maxX, extents.maxY]);
   assert.deepEqual(
     entities.map((entity) => entity.type),
-    [...holes.map(() => "CIRCLE"), ...panels.map(() => "LWPOLYLINE")],
+    [
+      ...holes.map(() => "CIRCLE"),
+      ...panels.flatMap((panel) => [
+        "POLYLINE",
+        ...panel.outline.map(() => "VERTEX"),
+        "SEQEND",
+      ]),
+    ],
     "all true circles are serialized before all closed outlines",
   );
   entities.slice(0, holes.length).forEach((circle, index) => {
@@ -348,15 +380,33 @@ function assertCutDxf(content, panels) {
     assert.equal(Number(circle.values.get(20)[0]), hole.yMm);
     assert.equal(Number(circle.values.get(40)[0]) * 2, hole.diameterMm);
   });
-  entities.slice(holes.length).forEach((outline, index) => {
+  outlines.forEach((outline, index) => {
     const expected = panels[index].outline;
-    assert.deepEqual(outline.values.get(8), ["CUT_OUTLINES_LAST"]);
-    assert.deepEqual(outline.values.get(90), [String(expected.length)]);
-    assert.deepEqual(outline.values.get(70), ["1"]);
-    assert.deepEqual(outline.values.get(10).map(Number), expected.map((point) => point.xMm));
-    assert.deepEqual(outline.values.get(20).map(Number), expected.map((point) => point.yMm));
+    assert.deepEqual(outline.header.values.get(8), ["CUT_OUTLINES_LAST"]);
+    assert.deepEqual(outline.header.values.get(66), ["1"]);
+    assert.deepEqual(outline.header.values.get(70), ["1"]);
+    assert.deepEqual(outline.header.values.get(10), ["0"]);
+    assert.deepEqual(outline.header.values.get(20), ["0"]);
+    assert.deepEqual(outline.header.values.get(30), ["0"]);
+    assert.equal(outline.vertices.length, expected.length);
+    assert.deepEqual(
+      outline.vertices.map((vertex) => Number(vertex.values.get(10)[0])),
+      expected.map((point) => point.xMm),
+    );
+    assert.deepEqual(
+      outline.vertices.map((vertex) => Number(vertex.values.get(20)[0])),
+      expected.map((point) => point.yMm),
+    );
+    assert(outline.vertices.every(
+      (vertex) => vertex.values.get(8)?.[0] === "CUT_OUTLINES_LAST"
+        && vertex.values.get(30)?.[0] === "0",
+    ));
+    assert.deepEqual(outline.seqend.values.get(8), ["CUT_OUTLINES_LAST"]);
   });
-  assert(entities.every((entity) => ["CIRCLE", "LWPOLYLINE"].includes(entity.type)));
+  assert.equal(outlines.length, panels.length);
+  assert(entities.every(
+    (entity) => ["CIRCLE", "POLYLINE", "VERTEX", "SEQEND"].includes(entity.type),
+  ));
 }
 
 test("all 420 configurations share exact panel geometry across preview and separate DXF", () => {
@@ -576,11 +626,20 @@ test("Full laser export ignores cut-through mode and emits grouped cut-only shee
     assertCutDxf(entries.get(group.filename), group.representative.panels);
     const entities = parseDxfEntities(entries.get(group.filename));
     assertNoCoincidentPolylineEdges(
-      entities.filter((entity) => entity.type === "LWPOLYLINE"),
+      parseR12PolylineSequences(entities),
       group.filename,
     );
   });
   const manifest = JSON.parse(entries.get("manifest.json"));
+  assert.equal(manifest.schemaVersion, 2);
+  assert.deepEqual(manifest.dxfFormat, {
+    release: "AutoCAD R12",
+    acadVersion: "AC1009",
+    encoding: "ASCII",
+    unitMetadataEncoded: false,
+    importUnits: "mm",
+    outlineEncoding: "POLYLINE/VERTEX/SEQEND",
+  });
   assert.equal(manifest.cutThroughOptionIgnored, true);
   assert.equal(manifest.kerfCompensationOwner, "CAM");
   assert.equal(manifest.exporterKerfOffsetMm, 0);
@@ -596,8 +655,10 @@ test("Full laser export ignores cut-through mode and emits grouped cut-only shee
     const entities = parseDxfEntities(entries.get(file.filename));
     assert.deepEqual(file.entityCounts, {
       circles: entities.filter((entity) => entity.type === "CIRCLE").length,
-      closedOutlines: entities.filter((entity) => entity.type === "LWPOLYLINE").length,
-      total: entities.length,
+      closedOutlines: entities.filter((entity) => entity.type === "POLYLINE").length,
+      total: entities.filter(
+        (entity) => ["CIRCLE", "POLYLINE"].includes(entity.type),
+      ).length,
     });
     assert.equal(file.quantity, file.physicalSheetInstances.length);
     assert.match(
@@ -799,6 +860,15 @@ test("separate archive uses configuration-rich semantic filenames and an externa
     assertCutDxf(entries.get(file.filename), [file.part]);
   });
   const manifest = JSON.parse(entries.get("manifest.json"));
+  assert.equal(manifest.schemaVersion, 2);
+  assert.deepEqual(manifest.dxfFormat, {
+    release: "AutoCAD R12",
+    acadVersion: "AC1009",
+    encoding: "ASCII",
+    unitMetadataEncoded: false,
+    importUnits: "mm",
+    outlineEncoding: "POLYLINE/VERTEX/SEQEND",
+  });
   assert.deepEqual(manifest.files.map((file) => file.quantity), [3, 3, 6, 3, 3]);
   assert.equal(manifest.cutterFilesContain, "cut geometry only");
   assert.deepEqual(manifest.semanticPanels.map((panel) => panel.role), [
@@ -810,8 +880,10 @@ test("separate archive uses configuration-rich semantic filenames and an externa
     const entities = parseDxfEntities(entries.get(file.filename));
     assert.deepEqual(file.entityCounts, {
       circles: entities.filter((entity) => entity.type === "CIRCLE").length,
-      closedOutlines: entities.filter((entity) => entity.type === "LWPOLYLINE").length,
-      total: entities.length,
+      closedOutlines: entities.filter((entity) => entity.type === "POLYLINE").length,
+      total: entities.filter(
+        (entity) => ["CIRCLE", "POLYLINE"].includes(entity.type),
+      ).length,
     });
   });
   assert.match(manifest.panelGeometrySha256, /^[0-9a-f]{64}$/);
