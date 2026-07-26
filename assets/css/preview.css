@@ -251,6 +251,13 @@
   stroke-width: 2;
 }
 
+.panel-cut-hole {
+  fill: #fff;
+  stroke: #8c2424;
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
 .model-face {
   stroke: var(--wood-edge);
   stroke-width: 2;
@@ -513,4 +520,3 @@
 .label-plate {
   opacity: 0.72;
 }
-

@@ -1,4 +1,5 @@
 const THREE = globalThis.THREE;
+const DRILL_MARKERS = globalThis.WOODCASE_DRILL_MARKERS_3D;
 
 if (!THREE) {
   throw new Error("The local Three.js runtime must load before model3d.js");
@@ -211,6 +212,7 @@ class WoodCaseViewer {
     this.lastY = 0;
     this.open = true;
     this.bom = null;
+    this.panelGeometry = null;
     this.lidAnimationFrame = null;
 
     this.scene = new THREE.Scene();
@@ -232,6 +234,7 @@ class WoodCaseViewer {
       fastener: new THREE.MeshStandardMaterial({ color: 0xcbd2d5, roughness: 0.24, metalness: 0.88 }),
       grid: new THREE.MeshStandardMaterial({ color: GRID, roughness: 0.42 }),
       gridBase: new THREE.MeshStandardMaterial({ color: 0xdcefee, transparent: true, opacity: 0.48, roughness: 0.7 }),
+      drill: new THREE.MeshBasicMaterial({ color: 0x8c2424, side: THREE.DoubleSide }),
       ground: new THREE.MeshStandardMaterial({ color: 0xf1f3ee, roughness: 1 }),
     };
 
@@ -713,6 +716,26 @@ class WoodCaseViewer {
     return pivot;
   }
 
+  buildDrillMarkers(geometry, dimensions) {
+    if (!DRILL_MARKERS || !geometry) return;
+    const plan = DRILL_MARKERS.createDrillMarkerPlan(geometry, dimensions);
+    for (const marker of plan) {
+      const mesh = new THREE.Mesh(
+        new THREE.CircleGeometry(marker.radiusMm, 24),
+        this.materials.drill,
+      );
+      mesh.position.set(...marker.position);
+      mesh.rotation.set(...marker.rotation);
+      mesh.name = `drill-marker:${marker.id}`;
+      mesh.userData.drillMarker = {
+        id: marker.id,
+        role: marker.role,
+        diameterMm: marker.diameterMm,
+      };
+      (marker.parent === "lid" ? this.lidAssembly : this.caseGroup).add(mesh);
+    }
+  }
+
   rebuild(bom) {
     disposeObject(this.caseGroup);
     this.scene.remove(this.caseGroup);
@@ -735,6 +758,7 @@ class WoodCaseViewer {
     this.buildFrontHardware(this.caseGroup, config, d, t);
     const lidPivot = this.buildLid(this.caseGroup, config, d, t);
     this.buildHinges(this.caseGroup, lidPivot, d, t);
+    this.buildDrillMarkers(this.panelGeometry, d);
     this.fastenerCounts = verifyFastenerAssembly(this.caseGroup, config);
 
     this.target.set(0, d.sideHeightMm * (this.open ? 1.0 : 0.52), this.open ? -outerDepth * 0.08 : 0);
@@ -742,8 +766,9 @@ class WoodCaseViewer {
     this.render();
   }
 
-  update(bom) {
+  update(bom, geometry) {
     this.bom = bom;
+    this.panelGeometry = geometry || null;
     this.rebuild(bom);
   }
 

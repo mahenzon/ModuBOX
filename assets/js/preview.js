@@ -1,22 +1,25 @@
 (function (root, factory) {
   let core = root.WOODCASE_CORE;
+  let panelGeometry = root.WOODCASE_PANEL_GEOMETRY;
   if (typeof module === "object" && module.exports) {
     core = require("./core.js");
-    module.exports = factory(core);
+    panelGeometry = require("./panel-geometry.js");
+    module.exports = factory(core, panelGeometry);
   } else {
-    root.WOODCASE_PREVIEW = factory(core);
+    root.WOODCASE_PREVIEW = factory(core, panelGeometry);
   }
-})(typeof globalThis !== "undefined" ? globalThis : this, function (core) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (core, panelGeometry) {
   "use strict";
 
-  if (!core) throw new Error("WOODCASE_CORE is required");
+  if (!core || !panelGeometry) throw new Error("Preview dependencies are required");
   const { buildBom, escapeHtml, normalizeOrbitAngle } = core;
 
-  function renderPreviewSvg(configInput, bomInput) {
+  function renderPreviewSvg(configInput, bomInput, geometryInput) {
     const bom = bomInput || buildBom(configInput);
     const config = bom.configuration;
     const d = bom.dimensions;
     const t = config.materialThicknessMm;
+    const geometry = geometryInput || panelGeometry.createPanelGeometry(bom);
 
     function defs(id) {
       return `<defs><marker id="${id}" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto-start-reverse"><path d="M 0 0 L 8 4 L 0 8 z" class="dimension-arrow"/></marker><pattern id="grid-${id}" width="55" height="55" patternUnits="userSpaceOnUse"><path d="M 55 0 L 0 0 0 55" class="modubox-grid-line"/></pattern></defs>`;
@@ -150,21 +153,31 @@
       `</svg>`,
     ].join("");
 
-    const panels = bom.woodParts.map((part, index) => {
-      const col = index % 2;
-      const row = Math.floor(index / 2);
-      const cellX = 24 + col * 396;
-      const cellY = 28 + row * 176;
-      const scale = Math.min(300 / part.lengthMm, 90 / part.widthMm);
-      const width = Math.max(70, part.lengthMm * scale);
-      const height = Math.max(24, part.widthMm * scale);
+    const panels = geometry.parts.map((part, index) => {
+      const col = index % 3;
+      const row = Math.floor(index / 3);
+      const cellX = 22 + col * 266;
+      const cellY = 28 + row * 250;
+      const scale = Math.min(210 / part.widthMm, 165 / part.heightMm);
+      const width = part.widthMm * scale;
+      const height = part.heightMm * scale;
+      const holes = part.holes.map((hole) => [
+        `<circle class="panel-cut-hole"`,
+        ` data-role="${part.role}" data-hole-id="${hole.id}"`,
+        ` data-x-mm="${hole.xMm}" data-y-mm="${hole.yMm}" data-diameter-mm="${hole.diameterMm}"`,
+        ` cx="${cellX + hole.xMm * scale}" cy="${cellY + 18 + (part.heightMm - hole.yMm) * scale}"`,
+        ` r="${hole.diameterMm * scale / 2}"/>`,
+      ].join("")).join("");
       return [
-        `<text x="${cellX}" y="${cellY}" class="panel-title">${escapeHtml(part.item)} ×${part.quantity}</text>`,
-        `<rect x="${cellX}" y="${cellY + 14}" width="${width}" height="${height}" class="wood-panel"/>`,
-        `<text x="${cellX}" y="${cellY + height + 38}" class="panel-size">${part.lengthMm} × ${part.widthMm} × ${part.thicknessMm} mm</text>`,
+        `<text x="${cellX}" y="${cellY}" class="panel-title">${escapeHtml(part.label)} ×1 · ${part.holes.length} holes</text>`,
+        `<rect x="${cellX}" y="${cellY + 18}" width="${width}" height="${height}" class="wood-panel"/>`,
+        holes,
+        `<text x="${cellX}" y="${cellY + height + 42}" class="panel-size">${part.widthMm} × ${part.heightMm} × ${part.thicknessMm} mm</text>`,
       ].join("");
     }).join("");
-    const panelsSvg = `<svg class="flat-view-svg panels-svg" viewBox="0 0 816 370" role="img" aria-label="Dimensioned wooden panel cut list">${panels}<text x="408" y="356" class="flat-note">All dimensions are finished cut sizes · material thickness ${t} mm</text></svg>`;
+    const clearance = geometry.clearanceDiameterMm;
+    const clearanceLabel = `${clearance >= 0 ? "+" : ""}${clearance.toFixed(2)} mm`;
+    const panelsSvg = `<svg class="flat-view-svg panels-svg" viewBox="0 0 816 530" role="img" aria-label="Dimensioned wooden panels with exact drill holes">${panels}<text x="408" y="516" class="flat-note">Nominal finished outlines · ${geometry.holeCount} holes · ${clearanceLabel} diametral hole adjustment · no laser kerf compensation</text></svg>`;
 
     return [
       `<div class="flat-preview-heading"><div><h3>Flat assembly views</h3><p>Dimensioned views use the same formulas as the BOM.</p></div><span>${config.widthBoxes}W × ${config.depthBoxes}D × ${config.heightLevel}H · ${t} mm material</span></div>`,
@@ -172,7 +185,7 @@
       `<article class="flat-view-card"><h3>Interior grid</h3>${topSvg}</article>`,
       `<article class="flat-view-card"><h3>Front assembly</h3>${frontSvg}</article>`,
       `<article class="flat-view-card"><h3>Side assembly</h3>${sideSvg}</article>`,
-      `<article class="flat-view-card flat-view-card-wide"><h3>Wood panel cut sizes</h3>${panelsSvg}</article>`,
+      `<article class="flat-view-card flat-view-card-wide"><h3>Wood panels and drill holes</h3>${panelsSvg}</article>`,
       `</div>`,
     ].join("");
   }

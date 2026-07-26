@@ -140,7 +140,7 @@ p {
 .controls-panel,
 .preview-panel,
 .export-panel,
-.wood-sheet-panel,
+.cutting-panel,
 .bom-section {
   padding: 18px;
 }
@@ -211,8 +211,10 @@ p {
 
 .btn-check:focus-visible + .choice,
 button:focus-visible,
-a:focus-visible {
-  outline: 3px solid rgba(45, 111, 115, 0.35);
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
-

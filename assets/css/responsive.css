@@ -45,12 +45,23 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .wood-sheet-controls {
+  .cutting-settings-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .dxf-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .dxf-export-options {
+    grid-template-columns: 1fr;
+  }
 
   .sheet-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .laser-layout-cards {
     grid-template-columns: 1fr;
   }
 }
@@ -87,7 +98,7 @@
   .controls-panel,
   .preview-panel,
   .export-panel,
-  .wood-sheet-panel,
+  .cutting-panel,
   .bom-section {
     padding: 14px;
   }
@@ -118,8 +129,16 @@
     gap: 8px;
   }
 
-  .wood-sheet-controls {
+  .cutting-settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .cutting-tool > summary {
+    min-height: 56px;
+  }
+
+  .cutting-tool-body {
+    padding: 12px;
   }
 
   .model3d-svg,
@@ -182,7 +201,8 @@
 
   .export-actions button,
   .export-select-label,
-  .export-select-label select {
+  .export-select-label select,
+  .dxf-export-option button {
     width: 100%;
   }
 
@@ -220,7 +240,8 @@
   .workflow-step,
   .controls-panel,
   .preview-panel,
-  .export-panel {
+  .export-panel,
+  .dxf-export-panel {
     display: none;
   }
 
@@ -228,7 +249,11 @@
     display: none;
   }
 
-  .wood-sheet-controls {
+  .cutting-panel > .section-heading,
+  .cutting-settings,
+  .wood-sheet-controls,
+  .cutting-tool-note,
+  .wood-sheet-panel > summary {
     display: none;
   }
 
@@ -242,6 +267,18 @@
   .sheet-card {
     box-shadow: none;
     break-inside: avoid;
+  }
+
+  .cutting-panel,
+  .wood-sheet-panel {
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+  }
+
+  details.wood-sheet-panel > .cutting-tool-body {
+    display: block;
+    padding: 0;
   }
 
   .sheet-layout-svg {

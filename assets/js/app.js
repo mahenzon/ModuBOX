@@ -1,32 +1,52 @@
 (function (root, factory) {
   let catalog = root.WOODCASE_CATALOG;
   let core = root.WOODCASE_CORE;
+  let panelGeometry = root.WOODCASE_PANEL_GEOMETRY;
   let preview = root.WOODCASE_PREVIEW;
   let planner = root.WOODCASE_SHEET_PLANNER;
   let renderers = root.WOODCASE_RENDERERS;
+  let dxfExport = root.WOODCASE_DXF_EXPORT;
+  let laserPreview = root.WOODCASE_LASER_PREVIEW;
   if (typeof module === "object" && module.exports) {
     catalog = require("./catalog.js");
     core = require("./core.js");
+    panelGeometry = require("./panel-geometry.js");
     preview = require("./preview.js");
     planner = require("./sheet-planner.js");
     renderers = require("./renderers.js");
-    module.exports = factory(root, catalog, core, preview, planner, renderers);
+    dxfExport = require("./dxf-export.js");
+    laserPreview = require("./laser-preview.js");
+    module.exports = factory(
+      root, catalog, core, panelGeometry, preview, planner, renderers, dxfExport, laserPreview,
+    );
   } else {
-    root.WOODCASE_APP = factory(root, catalog, core, preview, planner, renderers);
+    root.WOODCASE_APP = factory(
+      root, catalog, core, panelGeometry, preview, planner, renderers, dxfExport, laserPreview,
+    );
   }
-})(typeof globalThis !== "undefined" ? globalThis : this, function (root, catalog, core, preview, planner, renderers) {
+})(
+  typeof globalThis !== "undefined" ? globalThis : this,
+  function (root, catalog, core, panelGeometry, preview, planner, renderers, dxfExport, laserPreview) {
   "use strict";
 
-  if (!catalog || !core || !preview || !planner || !renderers) {
+  if (
+    !catalog || !core || !panelGeometry || !preview || !planner
+    || !renderers || !dxfExport || !laserPreview
+  ) {
     throw new Error("Wood Case application dependencies are required");
   }
 
-  const { getDefaultConfig, normalizeConfig, normalizeOrbitAngle, buildBom, setCurrentBom, exportBomAsCsv, exportBomAsJson, exportBomAsMarkdown } = core;
+  const { getDefaultConfig, normalizeConfig, normalizeOrbitAngle, buildBom, setCurrentBom, exportBomAsCsv, exportBomAsJson, exportBomAsMarkdown, formatCount } = core;
   const { renderPreviewSvg, renderModel3dSvg } = preview;
   const { normalizeWoodSheetOptions } = planner;
   const { getConfigFromControls, renderControls, renderSummary, renderBomTables, getWoodSheetOptionsFromControls, renderWoodSheetCalculator, renderModelDimensions } = renderers;
+  const { createPanelGeometry, normalizeClearanceDiameterMm } = panelGeometry;
+  const {
+    normalizeCaseSetCount, createFullDxfLayout, createFullDxfExport, createSeparateDxfExport,
+  } = dxfExport;
+  const { renderFullLaserPreview } = laserPreview;
 
-  let currentBom = null;
+  let currentBom = null, currentPanelGeometry = null, currentLaserLayout = null;
   let modelViewer = null;
   const PREFERENCES_STORAGE_KEY = "modubox-wood-case-preferences-v1";
   const modelView = {
@@ -46,7 +66,6 @@
       return null;
     }
   }
-
   function loadPreferences(storageInput) {
     const storage = storageInput || getPreferenceStorage();
     if (!storage) {
@@ -61,6 +80,11 @@
         version: 1,
         config: normalizeConfig(parsed.config),
         woodSheet: normalizeWoodSheetOptions(parsed.woodSheet),
+        dxf: {
+          clearanceDiameterMm: normalizeClearanceDiameterMm(
+            parsed.dxf && parsed.dxf.clearanceDiameterMm,
+          ),
+        },
       };
       if (parsed.modelView && Number.isFinite(parsed.modelView.yaw) && Number.isFinite(parsed.modelView.pitch)) {
         preferences.modelView = {
@@ -77,7 +101,6 @@
       return null;
     }
   }
-
   function applyPreferences(preferences, doc) {
     if (!preferences) {
       return;
@@ -104,6 +127,8 @@
     const cutThrough = doc.getElementById("cutThroughOnly");
     if (rotation) rotation.checked = preferences.woodSheet.allowRotation;
     if (cutThrough) cutThrough.checked = preferences.woodSheet.cutThroughOnly;
+    const holeClearance = doc.getElementById("holeClearanceMm");
+    if (holeClearance) holeClearance.value = preferences.dxf.clearanceDiameterMm;
     if (preferences.modelView) {
       modelView.yaw = preferences.modelView.yaw;
       modelView.pitch = preferences.modelView.pitch;
@@ -115,7 +140,6 @@
       if (openToggle) openToggle.checked = modelView.open;
     }
   }
-
   function savePreferences(doc, storageInput) {
     const storage = storageInput || getPreferenceStorage();
     if (!storage) {
@@ -126,6 +150,9 @@
         version: 1,
         config: getConfigFromControls(doc),
         woodSheet: getWoodSheetOptionsFromControls(doc),
+        dxf: {
+          clearanceDiameterMm: getHoleClearanceFromControls(doc),
+        },
         modelView: {
           yaw: modelView.yaw,
           pitch: modelView.pitch,
@@ -138,15 +165,36 @@
       return false;
     }
   }
-
-  function renderPreview(config, bom, doc) {
+  function getHoleClearanceFromControls(doc) {
+    const input = doc.getElementById("holeClearanceMm");
+    if (input && input.value === "") throw new Error("Hole diameter adjustment is required");
+    return normalizeClearanceDiameterMm(input?.value);
+  }
+  function setDxfStatus(status, message, state) {
+    if (!status) return;
+    status.textContent = message;
+    if (state) status.dataset.state = state;
+    else delete status.dataset.state;
+  }
+  function setControlValidity(doc, id, invalid) {
+    const input = doc.getElementById(id);
+    if (!input) return;
+    if (invalid) {
+      input.setAttribute("aria-invalid", "true");
+      input.setAttribute("aria-errormessage", "dxfExportStatus");
+    } else {
+      input.removeAttribute("aria-invalid");
+      input.removeAttribute("aria-errormessage");
+    }
+  }
+  function renderPreview(config, bom, geometry, doc) {
     const model = doc.getElementById("model3d");
     if (model) {
       if (typeof globalThis !== "undefined" && globalThis.WOODCASE_3D) {
         if (!modelViewer) modelViewer = globalThis.WOODCASE_3D.mount(model);
         if (modelViewer) {
           modelViewer.open = modelView.open;
-          modelViewer.update(bom);
+          modelViewer.update(bom, geometry);
         } else {
           model.innerHTML = renderModel3dSvg(config, bom, modelView);
         }
@@ -155,9 +203,8 @@
       }
     }
     renderModelDimensions(config, bom, doc, modelView);
-    doc.getElementById("preview").innerHTML = renderPreviewSvg(config, bom);
+    doc.getElementById("preview").innerHTML = renderPreviewSvg(config, bom, geometry);
   }
-
   function bindModelDrag(doc) {
     const model = doc.getElementById("model3d");
     if (!model) {
@@ -210,14 +257,18 @@
     openToggle?.addEventListener("change", () => {
       modelView.open = openToggle.checked;
       if (modelViewer) modelViewer.setOpen(modelView.open);
-      else if (currentBom) renderPreview(currentBom.configuration, currentBom, doc);
+      else if (currentBom) {
+        renderPreview(currentBom.configuration, currentBom, currentPanelGeometry, doc);
+      }
       savePreferences(doc);
     });
     resetButton?.addEventListener("click", () => {
       modelView.yaw = -0.62;
       modelView.pitch = -0.38;
       if (modelViewer) modelViewer.reset();
-      else if (currentBom) renderPreview(currentBom.configuration, currentBom, doc);
+      else if (currentBom) {
+        renderPreview(currentBom.configuration, currentBom, currentPanelGeometry, doc);
+      }
       savePreferences(doc);
     });
   }
@@ -226,17 +277,58 @@
     const doc = document;
     const config = getConfigFromControls(doc);
     const bom = buildBom(config);
+    const status = doc.getElementById("dxfExportStatus");
+    const exposeLaserError = doc.getElementById("laserCuttingTool")?.open !== false;
+    let geometry;
+    try {
+      geometry = createPanelGeometry(bom, {
+        clearanceDiameterMm: getHoleClearanceFromControls(doc),
+      });
+    } catch (error) {
+      currentPanelGeometry = null;
+      currentLaserLayout = null;
+      setControlValidity(doc, "holeClearanceMm", exposeLaserError);
+      setDxfStatus(status, exposeLaserError ? `DXF export unavailable: ${error.message}` : "", exposeLaserError ? "error" : "");
+      const laserResult = doc.getElementById("dxfLaserPreview");
+      if (laserResult) {
+        laserResult.innerHTML = `<p class="laser-preview-error">${core.escapeHtml(error.message)}</p>`;
+      }
+      return;
+    }
+    setControlValidity(doc, "holeClearanceMm", false);
     currentBom = bom;
+    currentPanelGeometry = geometry;
     setCurrentBom(bom);
     renderSummary(bom.configuration, bom, doc);
-    renderPreview(bom.configuration, bom, doc);
+    renderPreview(bom.configuration, bom, geometry, doc);
     renderBomTables(bom, doc);
     renderWoodSheetCalculator(bom, doc);
+    const laserResult = doc.getElementById("dxfLaserPreview");
+    try {
+      currentLaserLayout = createFullDxfLayout(
+        bom,
+        getWoodSheetOptionsFromControls(doc),
+        geometry.clearanceDiameterMm,
+      );
+      if (laserResult) laserResult.innerHTML = renderFullLaserPreview(currentLaserLayout);
+      setControlValidity(doc, "sheetKerfMm", false);
+      setDxfStatus(status, "");
+    } catch (error) {
+      currentLaserLayout = null;
+      setControlValidity(doc, "sheetKerfMm", exposeLaserError && /nesting gap/i.test(error.message));
+      if (laserResult) {
+        laserResult.innerHTML = `<p class="laser-preview-error">${core.escapeHtml(error.message)}</p>`;
+      }
+      setDxfStatus(status, exposeLaserError ? `Full-sheet DXF unavailable: ${error.message}` : "", exposeLaserError ? "error" : "");
+    }
     savePreferences(doc);
   }
-
   function downloadText(filename, text, mimeType) {
-    const blob = new Blob([text], { type: mimeType });
+    downloadFile(filename, text, mimeType);
+  }
+
+  function downloadFile(filename, content, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -247,9 +339,48 @@
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  function getDxfCaseSetCountFromControls(doc) {
+    return normalizeCaseSetCount(doc.getElementById("caseSetCount")?.value);
+  }
+
   function bindExportButtons(doc) {
     doc.getElementById("downloadMarkdown").addEventListener("click", () => {
       downloadText("woodcase-bom.md", exportBomAsMarkdown(currentBom), "text/markdown");
+    });
+    doc.getElementById("downloadDxfFull").addEventListener("click", () => {
+      const status = doc.getElementById("dxfExportStatus");
+      try {
+        const layout = currentLaserLayout || createFullDxfLayout(
+          currentBom,
+          getWoodSheetOptionsFromControls(doc),
+          getHoleClearanceFromControls(doc),
+        );
+        const exported = createFullDxfExport(currentBom, layout);
+        downloadFile(exported.filename, exported.content, exported.mimeType);
+        setControlValidity(doc, "sheetKerfMm", false);
+        setControlValidity(doc, "holeClearanceMm", false);
+        setDxfStatus(status, `Downloaded ${exported.filename}: ${formatCount(layout.groups.length, "unique cut layout")} for ${formatCount(layout.plan.sheetCount, "physical sheet")}.`, "success");
+      } catch (error) {
+        setControlValidity(doc, "sheetKerfMm", /nesting gap/i.test(error.message));
+        setControlValidity(doc, "holeClearanceMm", /hole diameter|clearance/i.test(error.message));
+        setDxfStatus(status, `Full-sheet DXF ZIP not downloaded: ${error.message}`, "error");
+      }
+    });
+    doc.getElementById("downloadDxfSeparate").addEventListener("click", () => {
+      const status = doc.getElementById("dxfExportStatus");
+      try {
+        const caseSetCount = getDxfCaseSetCountFromControls(doc);
+        const geometry = currentPanelGeometry || createPanelGeometry(currentBom, {
+          clearanceDiameterMm: getHoleClearanceFromControls(doc),
+        });
+        const exported = createSeparateDxfExport(currentBom, caseSetCount, geometry);
+        downloadFile(exported.filename, exported.content, exported.mimeType);
+        setControlValidity(doc, "holeClearanceMm", false);
+        setDxfStatus(status, `Downloaded ${exported.filename}: five panel DXFs plus a manifest for ${formatCount(caseSetCount, "case set")}.`, "success");
+      } catch (error) {
+        setControlValidity(doc, "holeClearanceMm", /hole diameter|clearance/i.test(error.message));
+        setDxfStatus(status, `Separate-panel DXF ZIP not downloaded: ${error.message}`, "error");
+      }
     });
     doc.getElementById("printBom").addEventListener("click", () => {
       window.print();
@@ -265,7 +396,8 @@
   }
 
   function bindWoodSheetControls(doc) {
-    doc.querySelectorAll(".wood-sheet-input").forEach((input) => {
+    doc.getElementById("laserCuttingTool")?.addEventListener("toggle", updateApp);
+    doc.querySelectorAll(".wood-sheet-input, .dxf-input").forEach((input) => {
       input.addEventListener("input", updateApp);
       input.addEventListener("change", updateApp);
     });
@@ -286,7 +418,9 @@
     document.addEventListener("DOMContentLoaded", () => initApp(document));
   }
   return {
-    catalog, PREFERENCES_STORAGE_KEY, getDefaultConfig, loadPreferences, initApp,
-    ...core, ...preview, ...planner, ...renderers,
+    catalog, PREFERENCES_STORAGE_KEY, getDefaultConfig, loadPreferences,
+    getDxfCaseSetCountFromControls, getHoleClearanceFromControls, initApp,
+    ...core, ...panelGeometry, ...preview, ...planner, ...renderers, ...dxfExport, ...laserPreview,
   };
-});
+  },
+);

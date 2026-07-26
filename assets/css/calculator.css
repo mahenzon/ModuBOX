@@ -36,6 +36,326 @@ button {
   font-size: 13px;
 }
 
+.cutting-settings {
+  min-width: 0;
+  padding: 14px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.cutting-settings legend {
+  padding: 0 6px;
+  color: var(--text);
+  font-weight: 760;
+}
+
+.cutting-settings > p {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.cutting-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cutting-settings-grid label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.cutting-settings-grid input[type="number"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  background: #fff;
+  font: inherit;
+}
+
+.cutting-settings-grid small,
+.checkbox-control small,
+.cutting-tool > summary small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 450;
+}
+
+.cutting-tools {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.cutting-tool {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.cutting-tool > summary {
+  min-height: 64px;
+  padding: 12px 14px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.cutting-tool > summary::marker {
+  color: var(--accent);
+}
+
+.cutting-tool > summary > span {
+  display: inline-grid;
+  gap: 2px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.cutting-tool > summary strong {
+  font-size: 17px;
+}
+
+.cutting-tool[open] > summary {
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-soft);
+}
+
+.cutting-tool-body {
+  min-width: 0;
+  padding: 16px;
+}
+
+.cutting-tool-note,
+.cutting-tool-intro {
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+
+.dxf-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(260px, 1fr);
+  gap: 12px 18px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.dxf-controls label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.dxf-controls input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  background: #fff;
+  font: inherit;
+}
+
+.dxf-controls p {
+  margin: 0;
+}
+
+.dxf-export-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dxf-export-option {
+  display: flex;
+  min-width: 0;
+  min-height: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.dxf-export-option.is-recommended {
+  border-color: #8cb8b5;
+  background: var(--accent-soft);
+}
+
+.dxf-export-option h3,
+.dxf-export-option p {
+  margin: 0;
+}
+
+.dxf-export-option h3 {
+  margin-bottom: 6px;
+  font-size: 18px;
+}
+
+.dxf-export-option p + p {
+  margin-top: 8px;
+}
+
+.dxf-option-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dxf-export-option button {
+  min-height: 44px;
+  margin-top: auto;
+}
+
+.export-status:not(:empty) {
+  padding: 11px 13px;
+  margin-top: 14px;
+  border: 1px solid #bcd8d5;
+  border-radius: 8px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 650;
+}
+
+.export-status[data-state="error"]:not(:empty) {
+  border-color: #e2c28f;
+  color: #8a5417;
+  background: #fff6e8;
+}
+
+.dxf-technical-details {
+  padding-top: 12px;
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.dxf-technical-details summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.dxf-technical-details > div {
+  display: grid;
+  gap: 8px;
+  max-width: 78ch;
+  margin-top: 10px;
+}
+
+.dxf-technical-details p,
+.dxf-preview-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dxf-preview-heading {
+  display: grid;
+  gap: 3px;
+  margin-top: 18px;
+}
+
+.dxf-preview-heading h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.laser-preview {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.laser-preview-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  border: 1px solid #bcd8d5;
+  border-radius: 8px;
+  background: #eaf5f3;
+}
+
+.laser-preview-summary span,
+.laser-preview-note,
+.laser-layout-card p {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.laser-preview-note {
+  margin: 0;
+}
+
+.laser-layout-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.laser-layout-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.laser-layout-card h3 {
+  margin: 0;
+}
+
+.laser-layout-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 10px;
+}
+
+.laser-preview-stock {
+  fill: #fffdf7;
+  stroke: #a9a28e;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
+
+.laser-preview-outline {
+  fill: var(--wood);
+  fill-opacity: 0.72;
+  stroke: var(--wood-edge);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.laser-preview-hole {
+  fill: #fff;
+  stroke: #8c2424;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.laser-preview-error {
+  padding: 12px 14px;
+  border: 1px solid #e2c28f;
+  border-radius: 8px;
+  color: #8a5417;
+  background: #fff6e8;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -50,9 +370,8 @@ button {
 
 .wood-sheet-controls {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .wood-sheet-controls label {
@@ -61,17 +380,6 @@ button {
   min-width: 0;
   color: var(--muted);
   font-weight: 650;
-}
-
-.wood-sheet-controls input[type="number"] {
-  width: 100%;
-  min-height: 40px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  background: #fff;
-  font: inherit;
 }
 
 .checkbox-control {
@@ -84,6 +392,11 @@ button {
 .checkbox-control input {
   width: 18px;
   height: 18px;
+}
+
+.checkbox-control > span {
+  display: grid;
+  gap: 2px;
 }
 
 .wood-sheet-result {
@@ -265,4 +578,3 @@ button {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
-

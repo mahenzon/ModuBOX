@@ -14,7 +14,7 @@
     <header class="app-header">
       <div>
         <h1>Wood Case v2 Configurator</h1>
-        <p>Choose dimensions, preview the case, and export a bill of materials.</p>
+        <p>Choose dimensions, preview the case, plan materials, and export build lists or DXF cutting files.</p>
       </div>
     </header>
 
@@ -71,56 +71,135 @@
       <div class="workflow-step" aria-labelledby="step-materials-title">
         <span class="workflow-step-number" aria-hidden="true">3</span>
         <div>
-          <h2 id="step-materials-title">Plan your materials</h2>
-          <p>Use the generated parts list first, then calculate how many wood sheets to buy.</p>
+          <h2 id="step-materials-title">Plan materials and cutting</h2>
+          <p>Review the generated parts list, then prepare a wood-sheet plan or cutter-ready DXF files.</p>
         </div>
       </div>
 
       <section id="bom" class="bom" aria-label="Bill of materials"></section>
 
-      <section class="panel wood-sheet-panel" aria-labelledby="wood-sheet-title">
+      <section class="panel cutting-panel" aria-labelledby="cutting-title">
         <div class="section-heading">
-          <h2 id="wood-sheet-title">Wood Sheet Calculator</h2>
-          <p>Estimate how many store-bought wood sheets are needed for the current cut list.</p>
+          <div>
+            <h2 id="cutting-title">Cutting</h2>
+            <p>Set up the stock once, then open the planning or DXF tool you need.</p>
+          </div>
         </div>
-        <div class="wood-sheet-controls">
-          <label>
-            <span>Case sets</span>
-            <input class="wood-sheet-input" id="caseSetCount" type="number" min="1" max="6" step="1" value="1">
-            <span>complete wood cut lists</span>
-          </label>
-          <label>
-            <span>Sheet length</span>
-            <input class="wood-sheet-input" id="sheetLengthMm" type="number" min="1" step="1" value="1000">
-            <span>mm</span>
-          </label>
-          <label>
-            <span>Sheet width</span>
-            <input class="wood-sheet-input" id="sheetWidthMm" type="number" min="1" step="1" value="500">
-            <span>mm</span>
-          </label>
-          <label>
-            <span>Kerf / gap</span>
-            <input class="wood-sheet-input" id="sheetKerfMm" type="number" min="0" step="0.5" value="3">
-            <span>mm</span>
-          </label>
-          <label class="checkbox-control">
-            <input class="wood-sheet-input" id="allowPartRotation" type="checkbox" checked>
-            <span>Allow rotating parts</span>
-          </label>
-          <label class="checkbox-control" title="Group matching panels, prefer fewer cuts, and show a numbered edge-to-edge cutting order.">
-            <input class="wood-sheet-input" id="cutThroughOnly" type="checkbox">
-            <span>Cut-through cuts only</span>
-          </label>
+
+        <fieldset class="cutting-settings" aria-describedby="cuttingSettingsHelp">
+          <legend>Shared cutting settings</legend>
+          <p id="cuttingSettingsHelp">Case quantity applies to both tools. Stock size, spacing, and rotation apply to the Wood Sheet Calculator and Full-sheet DXF.</p>
+          <div class="cutting-settings-grid">
+            <label>
+              <span>Case quantity</span>
+              <input class="wood-sheet-input" id="caseSetCount" type="number" min="1" max="6" step="1" value="1">
+              <small>Complete cases</small>
+            </label>
+            <label>
+              <span>Stock sheet length</span>
+              <input class="wood-sheet-input" id="sheetLengthMm" type="number" min="1" step="1" value="1000">
+              <small>mm</small>
+            </label>
+            <label>
+              <span>Stock sheet width</span>
+              <input class="wood-sheet-input" id="sheetWidthMm" type="number" min="1" step="1" value="500">
+              <small>mm</small>
+            </label>
+            <label>
+              <span>Saw kerf / laser gap</span>
+              <input class="wood-sheet-input" id="sheetKerfMm" type="number" min="0" step="0.1" value="3" aria-describedby="sheetGapHelp">
+              <small id="sheetGapHelp">Blade width for the wood plan; panel spacing for Full DXF (minimum 0.10 mm)</small>
+            </label>
+            <label class="checkbox-control">
+              <input class="wood-sheet-input" id="allowPartRotation" type="checkbox" checked>
+              <span>Allow panel rotation</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="cutting-tools">
+          <details id="woodCuttingTool" class="cutting-tool wood-sheet-panel">
+            <summary>
+              <span>
+                <strong id="wood-sheet-title">Wood Sheet Calculator</strong>
+                <small>Saw / guillotine sheet estimate and cutting order</small>
+              </span>
+            </summary>
+            <div class="cutting-tool-body">
+              <div class="wood-sheet-controls">
+                <label class="checkbox-control" title="Group matching panels, prefer fewer cuts, and show a numbered edge-to-edge cutting order.">
+                  <input class="wood-sheet-input" id="cutThroughOnly" type="checkbox">
+                  <span>
+                    <strong>Cut-through cuts only (saw / guillotine)</strong>
+                    <small>Groups matching panels and produces numbered edge-to-edge cuts.</small>
+                  </span>
+                </label>
+              </div>
+              <p class="cutting-tool-note">Uses the shared case quantity, stock size, spacing, and rotation settings.</p>
+              <div id="woodSheetResult" class="wood-sheet-result"></div>
+            </div>
+          </details>
+
+          <details id="laserCuttingTool" class="cutting-tool dxf-export-panel">
+            <summary>
+              <span>
+                <strong id="dxf-export-title">Laser / CAD DXF export</strong>
+                <small>Nested full sheets or separate panel files</small>
+              </span>
+            </summary>
+            <div class="cutting-tool-body">
+              <p class="cutting-tool-intro">Download cut-only DXF ZIPs generated from the same geometry as the preview.</p>
+              <div class="dxf-controls">
+                <label for="holeClearanceMm">
+                  <span>Hole clearance (diameter adjustment)</span>
+                  <input class="dxf-input" id="holeClearanceMm" type="number" min="-1" max="1" step="0.01" value="0.1" aria-describedby="holeClearanceHelp">
+                  <span id="holeClearanceHelp">Millimeters added once to each hole’s base diameter; default +0.10 mm</span>
+                </label>
+                <p>Panel outlines stay at their exact finished size. Set actual laser-beam kerf compensation in your laser/CAM software.</p>
+              </div>
+              <div class="dxf-export-options" aria-label="DXF download options">
+                <article class="dxf-export-option is-recommended" aria-labelledby="full-dxf-title">
+                  <div>
+                    <h3 id="full-dxf-title">Full sheets</h3>
+                    <p id="fullDxfDescription"><strong>Recommended for laser cutting.</strong> Downloads one DXF for each unique nested sheet layout, plus a manifest.</p>
+                    <p id="fullDxfSettings" class="dxf-option-note">Uses the shared case quantity, stock size, gap, and rotation. It ignores the saw-only <strong>Cut-through cuts only</strong> option.</p>
+                  </div>
+                  <button type="button" id="downloadDxfFull" class="primary-action" aria-describedby="fullDxfDescription fullDxfSettings">Download full-sheet DXF ZIP</button>
+                </article>
+                <article class="dxf-export-option" aria-labelledby="separate-dxf-title">
+                  <div>
+                    <h3 id="separate-dxf-title">Separate panels</h3>
+                    <p id="separateDxfDescription">Downloads one DXF per panel type, plus a manifest. The <code>-xN</code> filename suffix tells you how many copies to cut.</p>
+                    <p id="separateDxfSettings" class="dxf-option-note">Uses the shared case quantity and hole clearance. Stock size, gap, rotation, and saw options do not affect these files.</p>
+                  </div>
+                  <button type="button" id="downloadDxfSeparate" class="secondary-action" aria-describedby="separateDxfDescription separateDxfSettings">Download separate-panel DXF ZIP</button>
+                </article>
+              </div>
+              <p id="dxfExportStatus" class="export-status" role="status" aria-live="polite" aria-atomic="true"></p>
+              <details class="dxf-technical-details">
+                <summary>DXF technical details</summary>
+                <div>
+                  <p><strong>Full ZIP:</strong> each <code>sheet-XX-xN.dxf</code> is a unique physical-sheet layout; <code>xN</code> is the number of identical sheets to cut.</p>
+                  <p><strong>Separate ZIP:</strong> contains <code>front-xN.dxf</code>, <code>back-xN.dxf</code>, <code>sides-x2N.dxf</code>, <code>lid-xN.dxf</code>, and <code>bottom-xN.dxf</code>.</p>
+                  <p><strong>Cut order:</strong> in your laser software, cut <strong>CUT_HOLES_FIRST</strong> before <strong>CUT_OUTLINES_LAST</strong>. Physical DXFs contain cut geometry only.</p>
+                  <p><strong>Kerf:</strong> the 0.10 mm Full-export minimum is only a validation floor, not a universally safe production gap. Inspect compensated toolpaths in your laser/CAM software.</p>
+                </div>
+              </details>
+              <div class="dxf-preview-heading">
+                <h3 id="full-dxf-preview-title">Full-sheet export preview</h3>
+                <p>This is the exact nested geometry used by the full-sheet download.</p>
+              </div>
+              <div id="dxfLaserPreview" class="laser-preview" role="region" aria-labelledby="full-dxf-preview-title"></div>
+            </div>
+          </details>
         </div>
-        <div id="woodSheetResult" class="wood-sheet-result"></div>
       </section>
 
       <div class="workflow-step" aria-labelledby="step-export-title">
         <span class="workflow-step-number" aria-hidden="true">4</span>
         <div>
           <h2 id="step-export-title">Save your build list</h2>
-          <p>Export the final configuration and take it to the workshop.</p>
+          <p>Print or download the bill of materials after you have planned the cuts.</p>
         </div>
       </div>
 
@@ -148,12 +227,20 @@
     </main>
 
     <script src="assets/js/catalog.js"></script>
+    <script src="assets/js/drill-markers3d.js"></script>
     <script src="assets/vendor/three.min.js"></script>
     <script src="assets/js/model3d.js"></script>
     <script src="assets/js/core.js"></script>
+    <script src="assets/js/panel-geometry.js"></script>
     <script src="assets/js/preview.js"></script>
     <script src="assets/js/sheet-planner.js"></script>
+    <script src="assets/js/laser-plan.js"></script>
     <script src="assets/js/renderers.js"></script>
+    <script src="assets/js/dxf-writer.js"></script>
+    <script src="assets/js/dxf-archive.js"></script>
+    <script src="assets/js/sha256.js"></script>
+    <script src="assets/js/dxf-export.js"></script>
+    <script src="assets/js/laser-preview.js"></script>
     <script src="assets/js/app.js"></script>
   </body>
 </html>
