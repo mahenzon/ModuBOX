@@ -1383,7 +1383,9 @@ test("all supported sheet layouts preserve bounds and selected kerf spacing", ()
               options.allowRotation ? "rotate" : "fixed",
               options.cutThroughOnly ? "cut-through" : "compact",
             ].join("/");
-            assertSheetPlanBoundsAndKerf(app.calculateWoodSheetPlan(bom, options), context);
+            const plan = app.calculateWoodSheetPlan(bom, options);
+            assertSheetPlanBoundsAndKerf(plan, context);
+            if (!options.allowRotation) assert(plan.sheets.every((sheet) => sheet.placements.every((piece) => !piece.rotated)), `${context}: rotation disabled`);
             checkedPlans += 1;
           }
         }
@@ -1458,4 +1460,20 @@ test("cut guidelines use informational blue instead of error red", () => {
   assert.match(cutStyles, /#447fbd/);
   assert.match(cutStyles, /#356fa9/);
   assert(!cutStyles.includes("#b42318"));
+});
+
+test("cut instructions and panel positions preserve fractional kerf coordinates", () => {
+  const bom = app.buildBom({ materialThicknessMm: 9, heightLevel: 2 });
+  const plan = app.calculateWoodSheetPlan(bom, { caseSetCount: 2, kerfMm: 2.5, cutThroughOnly: true });
+  assertSheetPlanBoundsAndKerf(plan, "fractional kerf");
+  const display = (value) => Number(value.toFixed(3));
+  const html = app.renderWoodSheetPlan(plan);
+  assert(plan.sheets.some((sheet) => sheet.cutPlan.some((cut) => cut.lines.some((line) => line.coordinate % 1))));
+  for (const sheet of plan.sheets) {
+    for (const cut of sheet.cutPlan) {
+      for (const line of cut.lines) assert(html.includes(`${display(line.coordinate)} mm`));
+      if (cut.kind !== "batch") assert(html.includes(`${display(cut.lines[0].from)}–${display(cut.lines[0].to)} mm`));
+    }
+    for (const part of sheet.placements) assert(html.includes(`${display(part.x)}, ${display(part.y)} mm`));
+  }
 });

@@ -175,21 +175,21 @@
         units.push({
           id: `batch-${chunk.map((piece) => piece.id).join("-")}`,
           item: `${chunk.length} matching panels`,
-          lengthMm: batchWidth,
-          widthMm: batchHeight,
+          lengthMm: options.allowRotation ? batchWidth : batchHeight,
+          widthMm: options.allowRotation ? batchHeight : batchWidth,
           areaMm2: batchWidth * batchHeight,
           pieceNumber: Math.min(...chunk.map((piece) => piece.pieceNumber)),
           setIndex: Math.min(...chunk.map((piece) => piece.setIndex)),
           batchPieces: chunk.map((piece, index) => ({
             piece,
-            x: index * (shortSide + options.kerfMm),
-            y: 0,
-            width: shortSide,
-            height: longSide,
+            x: options.allowRotation ? index * (shortSide + options.kerfMm) : 0,
+            y: options.allowRotation ? 0 : index * (shortSide + options.kerfMm),
+            width: options.allowRotation ? shortSide : longSide,
+            height: options.allowRotation ? longSide : shortSide,
           })),
           internalCut: {
             count: chunk.length - 1,
-            orientation: "vertical",
+            orientation: options.allowRotation ? "vertical" : "horizontal",
             coordinates: chunk.slice(1).map((_piece, index) => (index + 1) * shortSide + index * options.kerfMm),
             from: 0,
             to: longSide,
@@ -479,7 +479,8 @@
         });
       }
       if (unit.internalCut) {
-        const lines = unit.internalCut.coordinates.map((coordinate) => unit.rotated
+        const horizontal = (unit.internalCut.orientation === "horizontal") !== unit.rotated;
+        const lines = unit.internalCut.coordinates.map((coordinate) => horizontal
           ? {
               orientation: "horizontal",
               coordinate: unit.y + coordinate,
@@ -495,7 +496,7 @@
         batchCuts.push({
           ...unit.internalCut,
           kind: "batch",
-          orientation: unit.rotated ? "horizontal" : "vertical",
+          orientation: horizontal ? "horizontal" : "vertical",
           lines,
         });
       }

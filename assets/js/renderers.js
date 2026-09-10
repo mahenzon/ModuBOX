@@ -206,9 +206,11 @@
     ].join("");
   }
 
+  const formatCoordinate = (value) => Number(value.toFixed(3));
+
   function formatCutCoordinates(cut) {
     return cut.lines
-      .map((line) => `${Math.round(line.coordinate)} mm`)
+      .map((line) => `${formatCoordinate(line.coordinate)} mm`)
       .join(", ");
   }
 
@@ -228,8 +230,8 @@
       const spanAxis = line.orientation === "vertical" ? "y" : "x";
       return [
         `<li><span class="cut-step-number">${cut.step}</span><div>`,
-        `<strong>${line.orientation === "vertical" ? "Vertical" : "Horizontal"} breakdown cut at ${axis} = ${Math.round(line.coordinate)} mm</strong>`,
-        `<span>Cut through ${spanAxis} = ${Math.round(line.from)}–${Math.round(line.to)} mm; keep the section containing ${cut.targetMarks.map(escapeHtml).join(" · ")}.</span>`,
+        `<strong>${line.orientation === "vertical" ? "Vertical" : "Horizontal"} breakdown cut at ${axis} = ${formatCoordinate(line.coordinate)} mm</strong>`,
+        `<span>Cut through ${spanAxis} = ${formatCoordinate(line.from)}–${formatCoordinate(line.to)} mm; keep the section containing ${cut.targetMarks.map(escapeHtml).join(" · ")}.</span>`,
         `</div></li>`,
       ].join("");
     }).join("");
@@ -256,7 +258,7 @@
         const rows = sheet.placements
           .map(
             (placement) =>
-              `<tr><td>${escapeHtml(placement.mark)}</td><td>${escapeHtml(placement.item)} ${placement.partCopy > 1 ? `#${placement.partCopy}` : ""}</td><td>${escapeHtml(formatSize(placement.lengthMm, placement.widthMm))}</td><td>${placement.rotated ? "Yes" : "No"}</td><td>${Math.round(placement.x)}, ${Math.round(placement.y)} mm</td></tr>`,
+              `<tr><td>${escapeHtml(placement.mark)}</td><td>${escapeHtml(placement.item)} ${placement.partCopy > 1 ? `#${placement.partCopy}` : ""}</td><td>${escapeHtml(formatSize(placement.lengthMm, placement.widthMm))}</td><td>${placement.rotated ? "Yes" : "No"}</td><td>${formatCoordinate(placement.x)}, ${formatCoordinate(placement.y)} mm</td></tr>`,
           )
           .join("");
         return [
