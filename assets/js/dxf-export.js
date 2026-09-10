@@ -30,7 +30,6 @@
     }
 
     const trustedLayouts = new WeakMap();
-
     function normalizeCaseSetCount(value) {
       const result = Number(value === undefined ? 1 : value);
       if (!Number.isInteger(result) || result < 1 || result > 6) {
@@ -38,7 +37,6 @@
       }
       return result;
     }
-
     function configDimensionStem(config) {
       const values = [
         config && config.widthBoxes,
@@ -49,13 +47,11 @@
       if (!values.every(Number.isFinite)) {
         throw new Error("DXF filenames require complete W, D, H, and material thickness");
       }
-      return `${config.widthBoxes}W-${config.depthBoxes}D-${config.heightLevel}H-${config.materialThicknessMm}mm`;
+      return `${config.widthBoxes}W-${config.depthBoxes}D-${config.heightLevel}H-${config.materialThicknessMm}mm${config.clearLid ? `-clear-plastic-${config.lidThicknessMm}mm-lid` : ""}${config.handle2H === "fixed" ? "-fixed" : ""}${config.cornerFastening === "wood-screws" ? "-screw-corners" : ""}`;
     }
-
     function configFilenameStem(bom) {
       return `woodcase-${configDimensionStem(bom.configuration || {})}`;
     }
-
     function geometryManifestFields(geometry) {
       return {
         ruleVersion: geometry.ruleVersion,
@@ -98,7 +94,6 @@
         panelGeometrySha256: contentFingerprint(panelGeometryRecord(geometry)),
       };
     }
-
     function holeAuditRecord(hole, localHole) {
       const record = {
         id: hole.id,
@@ -120,10 +115,10 @@
       }
       return record;
     }
-
     function panelAuditRecord(part) {
       return {
         role: part.role,
+        material: part.material, thicknessMm: part.thicknessMm,
         exportRole: part.exportRole,
         nominalPanelSizeMm: [part.widthMm, part.heightMm],
         semanticEdges: part.semanticEdges,
@@ -131,7 +126,6 @@
         holes: part.holes.map((hole) => holeAuditRecord(hole)),
       };
     }
-
     function panelGeometryRecord(geometry) {
       return {
         ruleVersion: geometry.ruleVersion,
@@ -140,17 +134,14 @@
         semanticPanels: geometry.parts.map(panelAuditRecord),
       };
     }
-
     function cutEntityCounts(panels) {
       const circles = panels.reduce((sum, panel) => sum + panel.holes.length, 0);
       const closedOutlines = panels.length;
       return { circles, closedOutlines, total: circles + closedOutlines };
     }
-
     function panelCutSignature(part) {
       return panelGeometry.getPartCutSignature(part);
     }
-
     function requireCanonicalGeometry(bom, geometry) {
       if (!geometry || !Array.isArray(geometry.parts)) {
         throw new Error("Canonical panel geometry is required for Separate DXF export");
@@ -163,7 +154,6 @@
       }
       return geometry;
     }
-
     function createSeparateDxfFiles(bom, caseSetCountInput, geometryInput) {
       const caseSetCount = normalizeCaseSetCount(caseSetCountInput);
       const geometry = geometryInput
@@ -193,7 +183,6 @@
         };
       });
     }
-
     function createSeparateManifest(bom, caseSetCount, geometry, files) {
       requireCanonicalGeometry(bom, geometry);
       const byRole = new Map(geometry.parts.map((part) => [part.role, part]));
@@ -214,7 +203,6 @@
         })),
       };
     }
-
     function createSeparateDxfExport(bom, caseSetCountInput, geometryOrClearance) {
       const caseSetCount = normalizeCaseSetCount(caseSetCountInput);
       const geometry = geometryOrClearance && Array.isArray(geometryOrClearance.parts)
@@ -238,7 +226,6 @@
         manifest,
       };
     }
-
     function groupSheetLayouts(sheetGeometry) {
       const groups = [];
       const bySignature = new Map();
@@ -259,11 +246,11 @@
       });
       groups.forEach((group) => {
         group.quantity = group.physicalSheets.length;
-        group.filename = `sheet-${String(group.ordinal).padStart(2, "0")}-${configDimensionStem(sheetGeometry.configuration)}-x${group.quantity}.dxf`;
+        const stock = sheetGeometry.configuration?.clearLid ? `-${group.representative.material.replaceAll(" ", "-")}-${group.representative.thicknessMm}mm` : "";
+        group.filename = `sheet-${String(group.ordinal).padStart(2, "0")}-${configDimensionStem(sheetGeometry.configuration)}${stock}-x${group.quantity}.dxf`;
       });
       return groups;
     }
-
     function canonicalSerialize(value, seenInput) {
       if (value === null) return "null";
       if (typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
@@ -307,11 +294,9 @@
       seen.delete(value);
       return serialized;
     }
-
     function contentFingerprint(value) {
       return sha256.sha256Hex(canonicalSerialize(value));
     }
-
     function rememberLayout(bom, layout) {
       trustedLayouts.set(layout, {
         bomSha256: contentFingerprint(bom),
@@ -319,7 +304,6 @@
       });
       return layout;
     }
-
     function looksLikeLayout(value) {
       return Boolean(
         value
@@ -327,7 +311,6 @@
         && ("plan" in value || "geometry" in value || "groups" in value),
       );
     }
-
     function requireTrustedLayout(bom, layout) {
       const trust = trustedLayouts.get(layout);
       if (!trust) {
@@ -341,7 +324,6 @@
       }
       return layout;
     }
-
     function createFullDxfLayout(bom, optionsInput, clearanceInput) {
       const plan = laserPlan.calculateLaserPlan(bom, optionsInput);
       if (!plan.success) {
@@ -358,13 +340,13 @@
         groups: groupSheetLayouts(sheetGeometry),
       });
     }
-
     function panelInstanceRecord(panel) {
       const localById = new Map(panel.sourcePart.holes.map((hole) => [hole.id, hole]));
       return {
         instanceId: panel.instanceId,
         mark: panel.mark,
         role: panel.role,
+        material: panel.sourcePart.material, thicknessMm: panel.sourcePart.thicknessMm,
         nominalPanelSizeMm: [panel.sourcePart.widthMm, panel.sourcePart.heightMm],
         semanticEdges: panel.sourcePart.semanticEdges,
         rotationDeg: panel.rotationDeg,
@@ -378,7 +360,6 @@
           holeAuditRecord(hole, localById.get(hole.id))),
       };
     }
-
     function packedPlanRecord(layout) {
       return {
         packingRoute: layout.plan.packingRoute,
@@ -392,7 +373,6 @@
         })),
       };
     }
-
     function createFullManifest(bom, layout, dxfFiles) {
       const fileByName = new Map(dxfFiles.map((file) => [file.filename, file]));
       const groupBySheet = new Map();
@@ -426,6 +406,7 @@
             normalizedLayoutSha256: sha256.sha256Hex(group.signature),
             quantity: group.quantity,
             entityCounts: cutEntityCounts(group.representative.panels),
+            material: group.representative.material, thicknessMm: group.representative.thicknessMm,
             stockSizeMm: [
               group.representative.stockLengthMm,
               group.representative.stockWidthMm,
@@ -446,7 +427,6 @@
         }),
       };
     }
-
     function createFullDxfExport(bom, layoutOrOptions, clearanceInput) {
       let layout;
       if (trustedLayouts.has(layoutOrOptions)) {

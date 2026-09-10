@@ -92,8 +92,9 @@
         `</g>`,
       ].join("");
     };
-    const handle = config.hasHandle
-      ? (() => {
+    const handle = config.handleStyle === "fixed"
+      ? `<g data-feature="handle" data-handle="fixed"><rect x="${210 - 110.5 * frontScale}" y="${panelY + panelH - 36 * frontScale}" width="${221 * frontScale}" height="${36 * frontScale}" rx="3" class="printed-part"/><path d="M ${210 - 100 * frontScale} ${panelY + panelH - 10 * frontScale} h ${200 * frontScale}" class="handle-curve"/><text x="210" y="${panelY + panelH - 26 * frontScale}" class="flat-hardware-label">Fixed 2H handle</text></g>`
+      : config.hasHandle ? (() => {
         const pivotY = panelY + panelH / 2;
         const halfWidth = handleWidth / 2;
         const handleDrop = Math.min(40, Math.max(24, panelH * 0.42));
@@ -169,15 +170,15 @@
         ` r="${hole.diameterMm * scale / 2}"/>`,
       ].join("")).join("");
       return [
-        `<text x="${cellX}" y="${cellY}" class="panel-title">${escapeHtml(part.label)} ×1 · ${part.holes.length} holes</text>`,
-        `<rect x="${cellX}" y="${cellY + 18}" width="${width}" height="${height}" class="wood-panel"/>`,
+        `<text x="${cellX}" y="${cellY}" class="panel-title">${escapeHtml(part.label)} · ${escapeHtml(part.material)} · ${part.holes.length} holes</text>`,
+        `<rect x="${cellX}" y="${cellY + 18}" width="${width}" height="${height}" class="${part.material === "wood" ? "wood-panel" : "clear-panel"}"/>`,
         holes,
         `<text x="${cellX}" y="${cellY + height + 42}" class="panel-size">${part.widthMm} × ${part.heightMm} × ${part.thicknessMm} mm</text>`,
       ].join("");
     }).join("");
     const clearance = geometry.clearanceDiameterMm;
     const clearanceLabel = `${clearance >= 0 ? "+" : ""}${clearance.toFixed(2)} mm`;
-    const panelsSvg = `<svg class="flat-view-svg panels-svg" viewBox="0 0 816 530" role="img" aria-label="Dimensioned wooden panels with exact drill holes">${panels}<text x="408" y="516" class="flat-note">Nominal finished outlines · ${geometry.holeCount} holes · ${clearanceLabel} diametral hole adjustment · no laser kerf compensation</text></svg>`;
+    const panelsSvg = `<svg class="flat-view-svg panels-svg" viewBox="0 0 816 530" role="img" aria-label="Dimensioned panels with exact drill holes">${panels}<text x="408" y="516" class="flat-note">Nominal finished outlines · ${geometry.holeCount} holes · ${clearanceLabel} diametral hole adjustment · no laser kerf compensation</text></svg>`;
 
     return [
       `<div class="flat-preview-heading"><div><h3>Flat assembly views</h3><p>Dimensioned views use the same formulas as the BOM.</p></div><span>${config.widthBoxes}W × ${config.depthBoxes}D × ${config.heightLevel}H · ${t} mm material</span></div>`,
@@ -185,7 +186,7 @@
       `<article class="flat-view-card"><h3>Interior grid</h3>${topSvg}</article>`,
       `<article class="flat-view-card"><h3>Front assembly</h3>${frontSvg}</article>`,
       `<article class="flat-view-card"><h3>Side assembly</h3>${sideSvg}</article>`,
-      `<article class="flat-view-card flat-view-card-wide"><h3>Wood panels and drill holes</h3>${panelsSvg}</article>`,
+      `<article class="flat-view-card flat-view-card-wide"><h3>Panels and drill holes</h3>${panelsSvg}</article>`,
       `</div>`,
     ].join("");
   }
@@ -239,7 +240,7 @@
       const relativeZ = z - hd;
       return pt(
         x,
-        hh - relativeZ * Math.sin(lidAngle),
+        hh + config.lidThicknessMm - config.materialThicknessMm - relativeZ * Math.sin(lidAngle),
         hd + relativeZ * Math.cos(lidAngle),
       );
     }
@@ -280,7 +281,7 @@
         id: "lid",
         label: "Lid panel",
         points: [lidPoint(-hw, -hd), lidPoint(hw, -hd), lidPoint(hw, hd), lidPoint(-hw, hd)],
-        className: "model-face model-lid",
+        className: `model-face model-lid${config.clearLid ? " model-clear-lid" : ""}`,
       },
     ];
 
@@ -306,7 +307,7 @@
 
     const sortedFaces = faces.slice().sort((a, b) => faceDepth(a) - faceDepth(b));
     const faceSvg = sortedFaces.map(polygon).join("");
-    const gridSvg = view.open
+    const gridSvg = view.open || config.clearLid
       ? (() => {
           const gridHalfWidth = config.widthBoxes * 55 / 2;
           const gridHalfDepth = config.depthBoxes * 55 / 2;
@@ -335,14 +336,14 @@
       labelFor("Bottom", pt(0, -hh - 8, 0)),
     ].join("");
     const hardwareLabels = [
-      hardwareLabel("Corner protectors", pt(-hw, hh, -hd)),
-      hardwareLabel("Corner protectors", pt(hw, hh, hd)),
+      hardwareLabel(config.cornerFastening === "wood-screws" ? "Screw corners" : "Corner protectors", pt(-hw, hh, -hd)),
+      hardwareLabel(config.cornerFastening === "wood-screws" ? "Screw corners" : "Corner protectors", pt(hw, hh, hd)),
       hardwareLabel("Hinges", pt(-hw * 0.38, hh * 0.25, hd + 8)),
       hardwareLabel("Lock set", pt(hw * 0.34, 0, -hd - 8)),
       hardwareLabel("Lip", lidPoint(0, -hd * 0.55)),
     ].join("");
     const handleLabel = config.hasHandle
-      ? hardwareLabel("Flat handle", pt(0, Math.min(hh - 6, hh * 0.45), -hd - 10))
+      ? hardwareLabel(config.handleStyle === "fixed" ? "Fixed 2H handle" : "Hinged handle", pt(0, Math.min(hh - 6, hh * 0.45), -hd - 10))
       : labelFor("No handle on 2H", pt(0, Math.min(hh - 6, hh * 0.2), -hd - 10), "model-label model-note");
 
     return [

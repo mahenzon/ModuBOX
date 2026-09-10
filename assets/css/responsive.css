@@ -148,8 +148,7 @@
     max-width: 100%;
   }
 
-  .model3d,
-  .model3d canvas {
+  .model3d {
     min-height: 410px;
   }
 

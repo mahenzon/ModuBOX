@@ -12,22 +12,21 @@
   if (!core) throw new Error("WOODCASE_CORE is required");
   const { buildBom } = core;
 
-  const RULE_VERSION = "woodcase-v2-phase2-2026-07-26-r3";
+  const RULE_VERSION = "woodcase-v2-options-2026-09-10-r5";
   const DEFAULT_CLEARANCE_DIAMETER_MM = 0.1;
   const MIN_CLEARANCE_DIAMETER_MM = -1;
   const MAX_CLEARANCE_DIAMETER_MM = 1;
   const HOLE_FAMILIES = Object.freeze({
     frontBack: Object.freeze({ baseDiameterMm: 3 }),
+    fixedHandle: Object.freeze({ baseDiameterMm: 3.5 }),
     side: Object.freeze({ baseDiameterMm: 3 }),
     lidFront: Object.freeze({ baseDiameterMm: 3.5 }),
     lidHinge: Object.freeze({ baseDiameterMm: 3.5 }),
     bottom: Object.freeze({ baseDiameterMm: 3 }),
   });
-
   function roundMm(value) {
     return Math.round(Number(value) * 1000000) / 1000000;
   }
-
   function normalizeClearanceDiameterMm(value) {
     const result = Number(
       value === undefined || value === null || value === ""
@@ -43,18 +42,15 @@
     }
     return roundMm(result);
   }
-
   function reflectX(widthMm, point) {
     return { xMm: roundMm(widthMm - point.xMm), yMm: roundMm(point.yMm) };
   }
-
   function reflectionMetadata(spanMm, sourcePlacement) {
     return {
       sourcePlacement,
       repeatedPlacementTransform: { type: "x-reflection", axisSpanMm: spanMm },
     };
   }
-
   function createHoleFactory(clearanceDiameterMm) {
     return function createHole(id, family, ruleId, xMm, yMm, metadata) {
       const baseDiameterMm = HOLE_FAMILIES[family].baseDiameterMm;
@@ -76,7 +72,6 @@
       };
     };
   }
-
   function createPart(role, exportRole, label, widthMm, heightMm, thicknessMm, holes, edges) {
     return {
       role,
@@ -99,7 +94,6 @@
       holes,
     };
   }
-
   function createFrontBackHoles(config, dimensions, clearanceDiameterMm, includeHandle, role) {
     const makeHole = createHoleFactory(clearanceDiameterMm);
     const L = dimensions.frontBackLengthMm;
@@ -144,10 +138,13 @@
       addReflected("handle-outer", "front-only-handle-pair", 64.3, yMm, metadata);
       addReflected("handle-inner", "front-only-handle-pair", 98, yMm, metadata);
     }
-    return holes;
+    if (includeHandle && config.heightLevel === 2 && config.handle2H === "fixed") {
+      for (const offset of [-102, -65, 65, 102]) holes.push(makeHole(`front:fixed-handle:${offset}`, "fixedHandle", "2h-v2-fixed-handle", L / 2 + offset, 7.25, { provenance: "measured-stl", source: "2H v2 front template; diameter from handle backing plate" }));
+    }
+    return config.cornerFastening === "wood-screws" ? holes.filter((hole) => !hole.id.includes(":edge-")) : holes;
   }
-
   function createSideHoles(config, dimensions, clearanceDiameterMm, role, frontEdgeXMm) {
+    if (config.cornerFastening === "wood-screws") return [];
     const makeHole = createHoleFactory(clearanceDiameterMm);
     const S = dimensions.sideLengthMm;
     const sigma = frontEdgeXMm === 0 ? 1 : -1;
@@ -180,7 +177,6 @@
       ];
     });
   }
-
   function createLidHoles(config, dimensions, clearanceDiameterMm) {
     const makeHole = createHoleFactory(clearanceDiameterMm);
     const L = dimensions.lidWidthMm;
@@ -211,8 +207,8 @@
     addReflected("hinge-inner", "lidHinge", "lid-back-hinge", 78.5, D - 15.8617);
     return holes;
   }
-
   function createBottomHoles(config, dimensions, clearanceDiameterMm) {
+    if (config.cornerFastening === "wood-screws") return [];
     const makeHole = createHoleFactory(clearanceDiameterMm);
     const offsetMm = config.materialThicknessMm + 10;
     const widthMm = dimensions.bottomWidthMm;
@@ -235,7 +231,6 @@
       },
     ));
   }
-
   function createPanelGeometry(bomOrConfig, optionsInput) {
     const bom = bomOrConfig && bomOrConfig.configuration ? bomOrConfig : buildBom(bomOrConfig);
     const config = bom.configuration;
@@ -267,7 +262,7 @@
         { frontEdgeXMm: 0, backEdgeXMm: d.sideLengthMm, bottomYMm: 0 },
       ),
       createPart(
-        "lid", "lid", "Lid", d.lidWidthMm, d.lidHeightMm, t,
+        "lid", "lid", "Lid", d.lidWidthMm, d.lidHeightMm, config.lidThicknessMm,
         createLidHoles(config, d, clearanceDiameterMm),
         { frontEdgeYMm: 0, backEdgeYMm: d.lidHeightMm },
       ),
@@ -277,6 +272,7 @@
         { frontEdgeYMm: 0, backEdgeYMm: d.bottomHeightMm },
       ),
     ];
+    parts.forEach((part) => { part.material = part.role === "lid" && config.clearLid ? config.lidMaterial : "wood"; });
     return {
       schemaVersion: 1,
       ruleVersion: RULE_VERSION,
@@ -288,7 +284,6 @@
       holeCount: parts.reduce((sum, part) => sum + part.holes.length, 0),
     };
   }
-
   function resolvePlacementRole(placement) {
     const partId = placement.partId || String(placement.id || "").replace(/-\d+-[a-z]+$/, "");
     if (partId === "front-back") return Number(placement.partCopy) === 2 ? "back" : "front";
@@ -297,7 +292,6 @@
     if (partId === "bottom") return "bottom";
     throw new Error(`Unknown wood-panel placement ${placement.id || partId}`);
   }
-
   function placePanel(part, placement, sheetWidthMm) {
     const rotated = Boolean(placement.rotated);
     const originX = Number(placement.x);
@@ -333,7 +327,6 @@
       holes: part.holes.map((hole) => ({ ...hole, ...transform(hole) })),
     };
   }
-
   function buildLaserSheetGeometries(bom, plan, optionsInput) {
     if (!plan || !plan.success || !Array.isArray(plan.sheets)) {
       throw new Error("A successful compact laser sheet plan is required");
@@ -344,6 +337,7 @@
       ...geometry,
       sheets: plan.sheets.map((sheet) => ({
         physicalSheetIndex: sheet.index,
+        material: sheet.material, thicknessMm: sheet.thicknessMm,
         stockLengthMm: plan.sheetLengthMm,
         stockWidthMm: plan.sheetWidthMm,
         panels: sheet.placements.map((placement) => {
@@ -353,7 +347,6 @@
       })),
     };
   }
-
   function canonicalPolygon(points) {
     const values = points.map((point) => `${roundMm(point.xMm)},${roundMm(point.yMm)}`);
     const variants = [];
@@ -364,13 +357,11 @@
     }
     return variants.sort()[0];
   }
-
   function getPartCutSignature(part) {
     const holes = part.holes.map((hole) =>
       `${roundMm(hole.xMm)},${roundMm(hole.yMm)},${roundMm(hole.diameterMm)}`).sort();
-    return JSON.stringify({ holes, outline: canonicalPolygon(part.outline) });
+    return JSON.stringify({ material: part.material, thicknessMm: part.thicknessMm, holes, outline: canonicalPolygon(part.outline) });
   }
-
   function getSheetCutSignature(sheet) {
     const holes = sheet.panels
       .flatMap((panel) => panel.holes.map((hole) =>
@@ -398,7 +389,7 @@
       })
       .sort();
     return JSON.stringify({
-      stock: [roundMm(sheet.stockLengthMm), roundMm(sheet.stockWidthMm)],
+      stock: [roundMm(sheet.stockLengthMm), roundMm(sheet.stockWidthMm), sheet.material, sheet.thicknessMm],
       placements,
       holes,
       outlines,

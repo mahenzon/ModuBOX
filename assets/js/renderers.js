@@ -20,30 +20,50 @@
   function getConfigFromControls(doc) {
     const source = doc || document;
     const config = {};
-    for (const key of Object.keys(catalog.parameters)) {
+    for (const key of Object.keys({ ...catalog.parameters, ...catalog.buildOptions })) {
       const checked = source.querySelector(`[name="${key}"]:checked`);
-      const select = source.querySelector(`[name="${key}"]`);
-      const rawValue = checked ? checked.value : select ? select.value : undefined;
+      const input = source.querySelector(`[name="${key}"]`);
+      const rawValue = input?.type === "checkbox" ? input.checked : checked?.value;
       config[key] = rawValue;
+    }
+    if (doc?.getElementById("build-options")) {
+      if (Number(config.widthBoxes) === 5 || (config.clearLid && Number(config.lidThicknessMm) < 6)) config.lipStyle = "standard";
+      if (Number(config.materialThicknessMm) < 9) config.cornerFastening = "bolts";
+      const wall = catalog.screwCorners.printedWallMm[config.materialThicknessMm];
+      if (Number(config.cornerScrewLengthMm) >= wall + Number(config.materialThicknessMm)) config.cornerScrewLengthMm = 0;
+      const normalized = normalizeConfig(config);
+      for (const [key, spec] of Object.entries(catalog.buildOptions)) {
+        const field = source.getElementById(`option-${key}`);
+        if (!field) continue;
+        field.hidden = !core.matchesRule(normalized, spec.when);
+        for (const input of source.querySelectorAll(`[name="${key}"]`)) {
+          if (input.type === "checkbox") continue;
+          input.checked = input.value === String(normalized[key]);
+          input.disabled = (spec.disabledValues || []).includes(input.value) || (key === "lipStyle" && input.value === "thin" && (normalized.widthBoxes === 5 || normalized.lidThicknessMm < 6)) || (key === "cornerFastening" && input.value === "wood-screws" && normalized.materialThicknessMm < 9) || (key === "cornerScrewLengthMm" && Number(input.value) >= wall + normalized.materialThicknessMm);
+          if (key === "cornerScrewLengthMm" && input.value === "0" && wall) {
+            const suggested = core.getCornerScrewSpec({ ...normalized, cornerScrewLengthMm: 0 });
+            input.nextElementSibling.textContent = `Auto (${suggested.lengthMm} mm)`;
+          }
+        }
+      }
     }
     return normalizeConfig(config);
   }
 
   function renderControls(doc, onChange) {
     const controls = doc.getElementById("controls");
-    controls.innerHTML = Object.entries(catalog.parameters)
-      .map(([key, spec]) => {
-        const buttons = spec.values
-          .map((value) => {
-            const id = `${key}-${value}`;
-            const checked = value === spec.defaultValue ? "checked" : "";
-            const label = key === "heightLevel" ? `${value}${spec.unit}` : `${value} ${spec.unit}`;
-            return `<input type="radio" class="btn-check" name="${key}" id="${id}" value="${value}" ${checked}><label class="choice" for="${id}">${escapeHtml(label)}</label>`;
-          })
-          .join("");
-        return `<fieldset class="control-group"><legend>${escapeHtml(spec.label)}</legend><div class="choice-row">${buttons}</div></fieldset>`;
-      })
-      .join("");
+    const labels = { none: "No handle", fixed: "Fixed handle", standard: "Standard lip", thin: "Thin lip", bolts: "Bolts + nuts", "wood-screws": "Direct wood screws" };
+    const renderGroup = ([key, spec]) => {
+      if (key === "clearLid") return `<div class="control-group" id="option-${key}"><label class="preview-toggle"><input type="checkbox" name="${key}" value="true"><span>${escapeHtml(spec.label)}</span></label></div>`;
+      const buttons = spec.values.map((value) => {
+        const id = `${key}-${value}`;
+        const label = spec.valueLabels?.[value] || labels[value] || `${value}${key === "heightLevel" ? "" : " "}${spec.unit || ""}`;
+        return `<input type="radio" class="btn-check" name="${key}" id="${id}" value="${value}" ${value === spec.defaultValue ? "checked" : ""}><label class="choice" for="${id}">${escapeHtml(label)}</label>`;
+      }).join("");
+      return `<fieldset class="control-group" id="option-${key}"><legend>${escapeHtml(spec.label)}</legend><div class="choice-row">${buttons}</div>${spec.help ? `<small>${escapeHtml(spec.help)}</small>` : ""}</fieldset>`;
+    };
+    controls.innerHTML = Object.entries(catalog.parameters).map(renderGroup).join("")
+      + `<div id="build-options" class="build-options">${Object.entries(catalog.buildOptions).map(renderGroup).join("")}</div>`;
     if (onChange) {
       controls.querySelectorAll("input").forEach((input) => {
         input.addEventListener("change", onChange);
@@ -59,10 +79,10 @@
     el.innerHTML = [
       `<div class="summary-card"><span>Configuration</span><strong>${config.materialThicknessMm} mm / ${config.widthBoxes} x ${config.depthBoxes} / ${config.heightLevel}H</strong></div>`,
       `<div class="summary-card"><span>Footprint</span><strong>${bom.dimensions.bottomWidthMm} x ${bom.dimensions.bottomHeightMm} mm</strong></div>`,
-      `<div class="summary-card"><span>Wood pieces</span><strong>${totalWood}</strong></div>`,
+      `<div class="summary-card"><span>Sheet pieces</span><strong>${totalWood}</strong></div>`,
       `<div class="summary-card"><span>Printed bodies</span><strong>${totalPrinted}</strong></div>`,
       `<div class="summary-card"><span>Optional templates</span><strong>${totalRecommended}</strong></div>`,
-      `<div class="summary-card"><span>Handle</span><strong>${config.hasHandle ? "Included" : "Not used for 2H"}</strong></div>`,
+      `<div class="summary-card"><span>Handle</span><strong>${config.hasHandle ? (config.handleStyle === "fixed" ? "Fixed (2H)" : "Hinged") : "Not selected (2H)"}</strong></div>`,
     ].join("");
   }
 
@@ -115,10 +135,11 @@
   function renderBomTables(bom, doc) {
     const el = doc.getElementById("bom");
     el.innerHTML = [
-      renderTable("Wood Cut List", bom.woodParts, [
+      renderTable("Panel Cut List", bom.woodParts, [
         { label: "Part", key: "item" },
         { label: "Qty", key: "quantity" },
         { label: "Size", render: (row) => escapeHtml(formatSize(row.lengthMm, row.widthMm)) },
+        { label: "Material", key: "material" },
         { label: "Thickness", render: (row) => `${row.thicknessMm} mm` },
         { label: "", render: (row) => renderFormulaDisclosure(row.formula) },
       ]),
@@ -141,6 +162,7 @@
         { label: "Use", key: "use" },
         { label: "Search", key: "search" },
       ]),
+      `<section class="assembly-notes"><h3>Assembly notes</h3><ul>${bom.notes.map((note) => `<li>${escapeHtml(note)}</li>`).join("")}</ul></section>`,
     ].join("");
     el.querySelectorAll(".formula-disclosure").forEach((details) => {
       const summary = details.querySelector("summary");
@@ -263,7 +285,7 @@
           .join("");
         return [
           `<article class="sheet-card">`,
-          `<h3>Sheet ${sheet.index}</h3>`,
+          `<h3>Sheet ${sheet.index} · ${escapeHtml(sheet.material || "wood")} · ${sheet.thicknessMm || ""} mm</h3>`,
           renderSheetLayoutSvg(sheet, plan),
           plan.cutThroughOnly ? renderSheetCutPlan(sheet) : "",
           `<div class="table-wrap"><table><thead><tr><th>#</th><th>Part</th><th>Cut size</th><th>Rotated</th><th>Top-left position</th></tr></thead><tbody>${rows}</tbody></table></div>`,
@@ -307,19 +329,19 @@
       `<dl class="primary-dimensions">`,
       `<div><dt>Width</dt><dd><strong>${config.widthBoxes} boxes</strong><span>${gridWidthMm} mm grid</span><span>${d.bottomWidthMm} mm overall</span></dd></div>`,
       `<div><dt>Depth</dt><dd><strong>${config.depthBoxes} boxes</strong><span>${gridDepthMm} mm grid</span><span>${d.bottomHeightMm} mm overall</span></dd></div>`,
-      `<div><dt>Height</dt><dd><strong>${config.heightLevel}H</strong><span>${d.frontBackHeightMm} mm panel</span><span>${d.sideHeightMm} mm overall</span></dd></div>`,
+      `<div><dt>Height</dt><dd><strong>${config.heightLevel}H</strong><span>${d.frontBackHeightMm} mm panel</span><span>${Math.max(d.sideHeightMm, d.frontBackHeightMm + config.lidThicknessMm)} mm panels with lid</span></dd></div>`,
       `<div><dt>Material</dt><dd><strong>${config.materialThicknessMm} mm</strong><span>wood thickness</span></dd></div>`,
       `</dl>`,
       `<div class="dimension-callouts">`,
       `<div class="dimension-callout"><strong>55 × 55 mm ModuBOX grid</strong><span>${config.widthBoxes} × ${config.depthBoxes} cells, printed and glued to the inside bottom only.</span></div>`,
-      `<div class="dimension-callout"><strong>Recessed lid construction</strong><span>The lid fits between the side panels and rests on the shorter front/back panels. When closed, its top is flush with the side-panel tops.</span></div>`,
+      `<div class="dimension-callout"><strong>Recessed lid construction</strong><span>The lid fits between the side panels and rests on the shorter front/back panels; its top is flush with the sides when lid and body thicknesses match.</span></div>`,
       `</div>`,
       `<div class="panel-dimensions">`,
-      `<strong class="panel-dimensions-heading">Wood panels</strong>`,
+      `<strong class="panel-dimensions-heading">Panels</strong>`,
       `<ul>`,
       `<li><span>Front / back ×2</span><strong>${d.frontBackLengthMm} × ${d.frontBackHeightMm} × ${config.materialThicknessMm} mm</strong></li>`,
       `<li><span>Sides ×2</span><strong>${d.sideLengthMm} × ${d.sideHeightMm} × ${config.materialThicknessMm} mm</strong></li>`,
-      `<li><span>Lid ×1</span><strong>${d.lidWidthMm} × ${d.lidHeightMm} × ${config.materialThicknessMm} mm</strong></li>`,
+      `<li><span>Lid ×1 · ${config.clearLid ? config.lidMaterial : "wood"}</span><strong>${d.lidWidthMm} × ${d.lidHeightMm} × ${config.lidThicknessMm} mm</strong></li>`,
       `<li><span>Bottom ×1</span><strong>${d.bottomWidthMm} × ${d.bottomHeightMm} × ${config.materialThicknessMm} mm</strong></li>`,
       `</ul>`,
       `</div>`,

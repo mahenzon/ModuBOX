@@ -23,14 +23,14 @@ function getFastenerRenderPlan(config = {}) {
   const add = (fastener, count, builder) => {
     for (let index = 0; index < count; index += 1) plan.push({ fastener, builder, index });
   };
-  add("primaryM3:corners", 16, "buildCorners");
+  add(config.cornerFastening === "wood-screws" ? "cornerWoodScrew" : "primaryM3:corners", 20, "buildCorners");
   add("primaryM3:hinges", 8, "buildHinges");
   add("primaryM3:lip", 2, "buildLid");
   add("primaryM3:lidLocks", 4, "buildLid");
   add("frameM3:lockToFrame", 4, "buildFrontHardware");
   if (hasHandle) add("frameM3:handleMounts", 4, "buildFrontHardware");
   add("hingePinM3x40", 2, "buildHinges");
-  if (hasHandle) add("handleM4x50", 2, "buildFrontHardware");
+  if (hasHandle && Number(config.heightLevel) !== 2) add("handleM4x50", 2, "buildFrontHardware");
   return plan;
 }
 
@@ -46,15 +46,13 @@ function getFrontHardwareLayout(config, dimensions, thickness) {
   const labelWidth = compact ? 84 : 112;
   const lidLockLeafHeight = 4;
   const lidLockLeafCenterY = 1.4;
-  const lidLockDropHeight = 15;
+  const lidLockDropHeight = 15 + (config.lidThicknessMm || thickness) - thickness;
   const lidLockCornerOverlap = 3;
   // The label sits behind the handle opening on the same horizontal datum as
   // both handle pivots. Keep this exact rather than deriving it from the
   // hanging handle geometry.
   const labelCenterY = handleTopY;
-  const lipWidth = config.widthBoxes === 5
-    ? Math.min(78, dimensions.lidWidthMm * 0.28)
-    : Math.min(96, dimensions.lidWidthMm * 0.28);
+  const lipWidth = config.widthBoxes === 5 ? 40 : 95;
   return {
     hasHandle,
     compact,
@@ -100,14 +98,15 @@ function getFrontHardwareLayout(config, dimensions, thickness) {
   };
 }
 
-function getHingeLayout(dimensions, thickness) {
-  const oldLidOriginY = dimensions.sideHeightMm;
+function getHingeLayout(dimensions, thickness, lidThickness = thickness) {
+  const lidTop = dimensions.frontBackHeightMm + lidThickness;
+  const oldLidOriginY = lidTop;
   const oldLidOriginZ = -dimensions.bottomHeightMm / 2;
-  const backZ = oldLidOriginZ - thickness / 2 - 2.5;
-  const axisY = dimensions.sideHeightMm - 1.5;
+  const backZ = oldLidOriginZ - 3.5; // Half the 7 mm fixed leaf seats it against the rear panel.
+  const axisY = lidTop - 1.5;
   const axisZ = backZ - 2;
-  const fixedLeafHeight = 30;
-  const fixedLeafCenterY = dimensions.sideHeightMm - 2 - fixedLeafHeight / 2;
+  const fixedLeafHeight = 30 + lidThickness - thickness;
+  const fixedLeafCenterY = lidTop - 2 - fixedLeafHeight / 2;
   const fixedScrewY = dimensions.sideHeightMm - 19;
   const movingLeafHeight = 6;
   const movingLeafDepth = 30 + thickness / 2;
@@ -166,6 +165,7 @@ function getFastenerManifest(config = {}) {
     },
     hingePinM3x40: counts.hingePinM3x40 || 0,
     handleM4x50: counts.handleM4x50 || 0,
+    cornerWoodScrew: counts.cornerWoodScrew || 0,
   };
 }
 
@@ -204,7 +204,7 @@ class WoodCaseViewer {
     this.element = element;
     this.yaw = -0.72;
     this.pitch = 0.48;
-    this.distance = 720;
+    this.distance = this.fitDistance = 720;
     this.target = new THREE.Vector3(0, 45, 0);
     this.dragging = false;
     this.pointerId = null;
@@ -214,7 +214,6 @@ class WoodCaseViewer {
     this.bom = null;
     this.panelGeometry = null;
     this.lidAnimationFrame = null;
-
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(34, 1, 1, 4000);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -224,9 +223,9 @@ class WoodCaseViewer {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.setAttribute("aria-label", "Rotatable 3D model of the configured ModuBOX wood case");
     this.element.replaceChildren(this.renderer.domElement);
-
     this.woodTexture = this.createWoodTexture();
     this.materials = {
+      clear: new THREE.MeshStandardMaterial({ color: 0xbfe7ef, transparent: true, opacity: 0.2, depthWrite: false, roughness: 0.12, metalness: 0.08, side: THREE.DoubleSide }),
       wood: new THREE.MeshStandardMaterial({ color: 0xffffff, map: this.woodTexture, roughness: 0.68, metalness: 0.01 }),
       printed: new THREE.MeshStandardMaterial({ color: PRINTED, roughness: 0.46, metalness: 0.02 }),
       printedDark: new THREE.MeshStandardMaterial({ color: PRINTED_DARK, roughness: 0.55 }),
@@ -237,7 +236,6 @@ class WoodCaseViewer {
       drill: new THREE.MeshBasicMaterial({ color: 0x8c2424, side: THREE.DoubleSide }),
       ground: new THREE.MeshStandardMaterial({ color: 0xf1f3ee, roughness: 1 }),
     };
-
     const hemi = new THREE.HemisphereLight(0xffffff, 0x8f7b66, 2.15);
     this.scene.add(hemi);
     const key = new THREE.DirectionalLight(0xffffff, 3.1);
@@ -252,7 +250,6 @@ class WoodCaseViewer {
     const fill = new THREE.DirectionalLight(0xffe2bc, 1.25);
     fill.position.set(420, 250, -320);
     this.scene.add(fill);
-
     this.caseGroup = new THREE.Group();
     this.scene.add(this.caseGroup);
     this.ground = new THREE.Mesh(new THREE.PlaneGeometry(1600, 1300), this.materials.ground);
@@ -260,14 +257,12 @@ class WoodCaseViewer {
     this.ground.position.y = -0.8;
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
-
     this.bindEvents();
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.element);
     this.resize();
     this.render();
   }
-
   createWoodTexture() {
     const canvas = document.createElement("canvas");
     canvas.width = 512;
@@ -307,7 +302,6 @@ class WoodCaseViewer {
     texture.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     return texture;
   }
-
   bindEvents() {
     const canvas = this.renderer.domElement;
     canvas.addEventListener("pointerdown", (event) => {
@@ -336,20 +330,29 @@ class WoodCaseViewer {
     canvas.addEventListener("pointercancel", stop);
     canvas.addEventListener("wheel", (event) => {
       event.preventDefault();
-      this.distance = THREE.MathUtils.clamp(this.distance * Math.exp(event.deltaY * 0.001), 300, 1500);
+      this.distance = THREE.MathUtils.clamp(this.distance * Math.exp(event.deltaY * 0.001), 300, Math.max(1500, this.fitDistance * 2));
       this.render();
     }, { passive: false });
   }
-
   resize() {
     const width = Math.max(280, this.element.clientWidth);
     const height = Math.max(360, this.element.clientHeight);
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.fitView();
     this.render();
   }
-
+  fitView() {
+    const bounds = new THREE.Box3().setFromObject(this.caseGroup);
+    if (bounds.isEmpty()) return;
+    const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+    this.target.copy(sphere.center);
+    const halfFov = Math.atan(Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * Math.min(1, this.camera.aspect));
+    this.distance = this.fitDistance = sphere.radius / Math.sin(halfFov) * 1.06;
+    this.camera.far = Math.max(4000, this.fitDistance * 2 + sphere.radius * 2);
+    this.camera.updateProjectionMatrix();
+  }
   render() {
     const horizontal = Math.cos(this.pitch) * this.distance;
     this.camera.position.set(
@@ -360,7 +363,6 @@ class WoodCaseViewer {
     this.camera.lookAt(this.target);
     this.renderer.render(this.scene, this.camera);
   }
-
   addEdges(mesh, color = WOOD_EDGE, opacity = 0.62) {
     const lines = new THREE.LineSegments(
       new THREE.EdgesGeometry(mesh.geometry, 24),
@@ -369,7 +371,6 @@ class WoodCaseViewer {
     mesh.add(lines);
     return mesh;
   }
-
   box(parent, size, position, material, options = {}) {
     const geometry = new THREE.BoxGeometry(size[0], size[1], size[2], 1, 1, 1);
     const mesh = new THREE.Mesh(geometry, material);
@@ -381,7 +382,6 @@ class WoodCaseViewer {
     if (options.edges !== false) this.addEdges(mesh, options.edgeColor || WOOD_EDGE, options.edgeOpacity || 0.58);
     return mesh;
   }
-
   cylinder(parent, radius, length, position, rotation = [Math.PI / 2, 0, 0], material = this.materials.metal) {
     const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, 14), material);
     mesh.position.set(...position);
@@ -390,15 +390,25 @@ class WoodCaseViewer {
     parent.add(mesh);
     return mesh;
   }
-
   screw(parent, x, y, z, surface = "front", fastener = "primaryM3") {
     const sideSurface = surface === "side" || surface === "side-left";
-    const rotation = surface === "top" ? [0, 0, 0] : sideSurface ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0];
+    const rotation = (surface === "top" || surface === "bottom") ? [0, 0, 0] : sideSurface ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0];
     const normal = surface === "front" ? [0, 0, 1]
       : surface === "back" ? [0, 0, -1]
-        : surface === "top" ? [0, 1, 0]
+        : surface === "top" ? [0, 1, 0] : surface === "bottom" ? [0, -1, 0]
           : surface === "side" ? [1, 0, 0]
             : [-1, 0, 0];
+    if (fastener === "cornerWoodScrew") {
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 1.5, 2, 20), this.materials.fastener);
+      head.position.set(x - normal[0] * 0.8, y - normal[1] * 0.8, z - normal[2] * 0.8);
+      head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(...normal));
+      head.name = `fastener:${fastener}`;
+      head.userData.fastener = fastener;
+      parent.add(head);
+      const slot = this.box(head, [2.5, 0.15, 0.45], [0, 1.02, 0], this.materials.printedDark, { edges: false });
+      slot.castShadow = false;
+      return head;
+    }
     const washerPosition = [x + normal[0] * 0.45, y + normal[1] * 0.45, z + normal[2] * 0.45];
     const headPosition = [x + normal[0] * 1.25, y + normal[1] * 1.25, z + normal[2] * 1.25];
     this.cylinder(parent, 3.15, 0.65, washerPosition, rotation, this.materials.fastener);
@@ -410,7 +420,6 @@ class WoodCaseViewer {
     this.box(parent, slotSize, slotPosition, this.materials.printedDark, { edges: false, castShadow: false });
     return head;
   }
-
   socketBolt(parent, x, y, z) {
     this.cylinder(parent, 4.1, 0.8, [x, y, z - 1.8], [Math.PI / 2, 0, 0], this.materials.fastener);
     const head = this.cylinder(parent, 3.35, 3.2, [x, y, z], [Math.PI / 2, 0, 0], this.materials.fastener);
@@ -419,11 +428,9 @@ class WoodCaseViewer {
     this.cylinder(parent, 1.25, 0.7, [x, y, z + 2.15], [Math.PI / 2, 0, 0], this.materials.printedDark);
     return head;
   }
-
   printedBox(parent, size, position, options = {}) {
     return this.box(parent, size, position, this.materials.printed, { edgeColor: PRINTED_DARK, edgeOpacity: 0.8, ...options });
   }
-
   roundedPlate(parent, width, height, depth, position, options = {}) {
     const radius = Math.min(options.radius || 4, width / 2, height / 2);
     const x = -width / 2;
@@ -457,7 +464,6 @@ class WoodCaseViewer {
     this.addEdges(mesh, options.edgeColor || PRINTED_DARK, 0.65);
     return mesh;
   }
-
   caseLabel(parent, config, width, height, position) {
     const label = formatCaseLabel(config);
     const canvas = document.createElement("canvas");
@@ -470,7 +476,6 @@ class WoodCaseViewer {
     context.textAlign = "center";
     context.textBaseline = "middle";
     context.fillText(label, canvas.width / 2, canvas.height / 2 + 2);
-
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.minFilter = THREE.LinearFilter;
@@ -489,7 +494,6 @@ class WoodCaseViewer {
     parent.add(mesh);
     return mesh;
   }
-
   chamferedUHandle(parent, width, height, bar, depth, position) {
     const group = new THREE.Group();
     group.position.set(...position);
@@ -501,7 +505,6 @@ class WoodCaseViewer {
     const diagonalInset = diagonalDrop;
     const joinY = topY - verticalDrop;
     const bottomY = joinY - diagonalDrop;
-
     const addBarBetween = (x1, y1, x2, y2) => {
       const dx = x2 - x1;
       const dy = y2 - y1;
@@ -511,7 +514,6 @@ class WoodCaseViewer {
         rotation: [0, 0, Math.atan2(dy, dx)],
       });
     };
-
     // Each side has a vertical run, a 45° diagonal, then the horizontal
     // grip: two explicit 45° turns instead of a single rounded 90° corner.
     addBarBetween(-halfW, topY, -halfW, joinY);
@@ -521,7 +523,6 @@ class WoodCaseViewer {
     addBarBetween(-halfW + diagonalInset, bottomY, halfW - diagonalInset, bottomY);
     return group;
   }
-
   buildGrid(parent, config, d, t) {
     const width = config.widthBoxes * 55;
     const depth = config.depthBoxes * 55;
@@ -536,10 +537,10 @@ class WoodCaseViewer {
       this.box(parent, [width, 2.2, 2.2], [0, y + 1.1, z], this.materials.grid, { edges: false });
     }
   }
-
-  buildCorners(parent, outerWidth, outerDepth, sideHeight, t) {
+  buildCorners(parent, outerWidth, outerDepth, sideHeight, t, config) {
     const rail = Math.max(20, t + 10);
     const shell = 6;
+    const fastener = config.cornerFastening === "wood-screws" ? "cornerWoodScrew" : "primaryM3:corners";
     for (const xSign of [-1, 1]) {
       for (const zSign of [-1, 1]) {
         const x = xSign * outerWidth / 2;
@@ -548,17 +549,18 @@ class WoodCaseViewer {
         this.roundedPlate(parent, rail, sideHeight + 10, shell, [x + xSign * (t / 2 + 2.5), sideHeight / 2, z - zSign * rail * 0.12], { radius: 5, rotation: [0, Math.PI / 2, 0] });
         // Rounded top cap and bottom foot wrap inward around each wood corner.
         this.printedBox(parent, [rail + 10, 5, rail + 10], [x - xSign * 5, sideHeight + 1.5, z - zSign * 5], { edgeOpacity: 0.55 });
-        this.printedBox(parent, [rail + 8, 5, rail + 8], [x - xSign * 4, 2, z - zSign * 4], { edgeOpacity: 0.55 });
-        // Four primary M3 bolts per corner: two through each leg of the L rail.
+        // Leave a 4 mm rim inward of the bottom screw axis at t + 10.
+        this.printedBox(parent, [t + 24, 5, t + 24], [x - xSign * (t / 2 + 2), 2, z - zSign * (t / 2 + 2)], { edgeOpacity: 0.55 }).name = "corner:bottom-foot";
+        this.screw(parent, x - xSign * (t + 10), -0.5, z - zSign * (t + 10), "bottom", fastener);
+        // Two wall fasteners per leg, plus the separate bottom fastener.
         for (const fraction of [0.27, 0.73]) {
           const y = sideHeight * fraction;
-          this.screw(parent, x - xSign * rail * 0.12, y, z + zSign * (t / 2 + 5.7), zSign > 0 ? "front" : "back", "primaryM3:corners");
-          this.screw(parent, x + xSign * (t / 2 + 5.7), y, z - zSign * rail * 0.12, xSign > 0 ? "side" : "side-left", "primaryM3:corners");
+          this.screw(parent, x - xSign * rail * 0.12, y, z + zSign * (t / 2 + 5.7), zSign > 0 ? "front" : "back", fastener);
+          this.screw(parent, x + xSign * (t / 2 + 5.7), y, z - zSign * rail * 0.12, xSign > 0 ? "side" : "side-left", fastener);
         }
       }
     }
   }
-
   buildFrontHardware(parent, config, d, t) {
     const frontZ = d.bottomHeightMm / 2 + t / 2 + 3.2;
     const layout = getFrontHardwareLayout(config, d, t);
@@ -587,7 +589,6 @@ class WoodCaseViewer {
       rail.name = "front-lock:fixed-rail";
       this.screw(parent, x - lockRailWidth * 0.27, latchY, frontZ + 6.1, "front", "frameM3:lockToFrame");
       this.screw(parent, x + lockRailWidth * 0.27, latchY, frontZ + 6.1, "front", "frameM3:lockToFrame");
-
       // Part 3: a screwless sliding shell wraps around the fixed rail. Four
       // simple bars leave the rail and its two mounting screws visible.
       const shellDepth = lockShellDepth;
@@ -605,9 +606,19 @@ class WoodCaseViewer {
       for (const part of [top, bottom, left, right]) part.name = "front-lock:screwless-slider-shell";
     }
     if (!config.hasHandle) return;
-
-    // The real project has one compact 3H handle set and one fixed 4H-6H
-    // set. Neither scales with panel height; both hang from the panel top.
+    if (config.heightLevel === 2) {
+      const frontZ = d.bottomHeightMm / 2 + 1.3; // Seat the 2.6 mm backing; the locks keep their own datum.
+      this.roundedPlate(parent, 221, 36, 2.6, [0, 18, frontZ], { radius: 3, bevel: false }).name = "handle:fixed-backing";
+      const grip = new THREE.Group();
+      grip.name = "handle:fixed-grip";
+      parent.add(grip);
+      this.roundedPlate(grip, 221, 17.8, 10.8, [0, 10, frontZ + 6.7], { radius: 3 });
+      for (const x of [-100, 100]) this.printedBox(grip, [21, 17.8, 32.4], [x, 10, frontZ + 17]);
+      this.roundedPlate(grip, 221, 17.8, 11, [0, 10, frontZ + 28], { radius: 5 });
+      this.caseLabel(parent, config, 90, 10, [0, 29, frontZ + 2]);
+      for (const x of [-102, -65, 65, 102]) this.screw(parent, x, 7.25, frontZ + 8, "front", "frameM3:handleMounts");
+      return;
+    }
     const {
       handleWidth,
       handleHeight,
@@ -633,9 +644,8 @@ class WoodCaseViewer {
       this.socketBolt(parent, x, topY, frontZ + 14);
     }
   }
-
-  buildHinges(parent, lidPivot, d, t) {
-    const hinge = getHingeLayout(d, t);
+  buildHinges(parent, lidPivot, d, t, lidThickness = t) {
+    const hinge = getHingeLayout(d, t, lidThickness);
     const { backZ } = hinge;
     const offset = Math.min(d.frontBackLengthMm * 0.3, 125);
     const lidAssembly = lidPivot.userData.lidAssembly || lidPivot;
@@ -644,7 +654,6 @@ class WoodCaseViewer {
       fixedLeaf.name = "hinge:fixed-back-leaf";
       this.screw(parent, x - 12, hinge.fixedScrewY, backZ - 4.2, "back", "primaryM3:hinges");
       this.screw(parent, x + 12, hinge.fixedScrewY, backZ - 4.2, "back", "primaryM3:hinges");
-
       // The moving leaf sits visibly on top of the wood lid and rotates with
       // it. Its thickness begins exactly at the lid's y=0 top surface.
       const movingLeaf = this.printedBox(
@@ -655,30 +664,28 @@ class WoodCaseViewer {
       movingLeaf.name = "hinge:moving-lid-top-leaf";
       this.screw(lidAssembly, x - 12, hinge.movingLeafTopY, hinge.movingScrewZ, "top", "primaryM3:hinges");
       this.screw(lidAssembly, x + 12, hinge.movingLeafTopY, hinge.movingScrewZ, "top", "primaryM3:hinges");
-
       const pin = this.cylinder(parent, 3.1, 40, [x, hinge.axisY, hinge.axisZ], [0, 0, Math.PI / 2], this.materials.metal);
       pin.name = "fastener:hingePinM3x40";
       pin.userData.fastener = "hingePinM3x40";
     }
   }
-
   buildLid(parent, config, d, t) {
-    const hinge = getHingeLayout(d, t);
+    const lt = config.lidThicknessMm;
+    const hinge = getHingeLayout(d, t, lt);
     const pivot = new THREE.Group();
     pivot.position.set(0, hinge.axisY, hinge.axisZ);
     pivot.rotation.x = this.open ? THREE.MathUtils.degToRad(-108) : 0;
     parent.add(pivot);
     this.lidPivot = pivot;
-
     const lidAssembly = new THREE.Group();
     lidAssembly.position.set(0, hinge.assemblyOffsetY, hinge.assemblyOffsetZ);
     pivot.add(lidAssembly);
     pivot.userData.lidAssembly = lidAssembly;
     this.lidAssembly = lidAssembly;
-
-    // The closed lid occupies the one-thickness recess. Its underside rests
-    // on front/back and its top is flush with both side-panel tops.
-    this.box(lidAssembly, [d.lidWidthMm, t, d.lidHeightMm], [0, -t / 2, d.lidHeightMm / 2], this.materials.wood);
+    // Retrofit: body dimensions stay fixed; the lid rests on the front/back.
+    const lid = this.box(lidAssembly, [d.lidWidthMm, lt, d.lidHeightMm], [0, -lt / 2, d.lidHeightMm / 2], config.clearLid ? this.materials.clear : this.materials.wood, { castShadow: !config.clearLid, edgeColor: config.clearLid ? 0x4b929e : WOOD_EDGE });
+    lid.name = config.clearLid ? "lid:transparent-panel" : "lid:wood-panel";
+    if (config.clearLid) lid.renderOrder = 2;
     const frontZ = d.lidHeightMm + t / 2 + 2.5;
     const layout = getFrontHardwareLayout(config, d, t);
     const {
@@ -710,12 +717,12 @@ class WoodCaseViewer {
     // Inverted L profile: its apron points down over the front edge in the
     // closed state; no component projects upward as in the old placeholder.
     this.printedBox(lidAssembly, [lipWidth, 2.4, 16], [0, 0.7, d.lidHeightMm - 5]);
-    this.roundedPlate(lidAssembly, lipWidth, 20, 5, [0, -10, frontZ], { radius: 4 });
+    const lipHeight = config.lipStyle === "thin" ? 12.5 : 20;
+    this.roundedPlate(lidAssembly, lipWidth, lipHeight, 5, [0, -lipHeight / 2, frontZ], { radius: 3 }).name = `lip:${config.lipStyle}`;
     this.screw(lidAssembly, -lipWidth * 0.34, 2.4, d.lidHeightMm - 5, "top", "primaryM3:lip");
     this.screw(lidAssembly, lipWidth * 0.34, 2.4, d.lidHeightMm - 5, "top", "primaryM3:lip");
     return pivot;
   }
-
   buildDrillMarkers(geometry, dimensions) {
     if (!DRILL_MARKERS || !geometry) return;
     const plan = DRILL_MARKERS.createDrillMarkerPlan(geometry, dimensions);
@@ -735,7 +742,6 @@ class WoodCaseViewer {
       (marker.parent === "lid" ? this.lidAssembly : this.caseGroup).add(mesh);
     }
   }
-
   rebuild(bom) {
     disposeObject(this.caseGroup);
     this.scene.remove(this.caseGroup);
@@ -746,32 +752,26 @@ class WoodCaseViewer {
     const t = config.materialThicknessMm;
     const outerWidth = d.bottomWidthMm;
     const outerDepth = d.bottomHeightMm;
-
     this.box(this.caseGroup, [outerWidth, t, outerDepth], [0, t / 2, 0], this.materials.wood);
     this.box(this.caseGroup, [t, d.sideHeightMm, outerDepth], [-outerWidth / 2 + t / 2, d.sideHeightMm / 2, 0], this.materials.wood);
     this.box(this.caseGroup, [t, d.sideHeightMm, outerDepth], [outerWidth / 2 - t / 2, d.sideHeightMm / 2, 0], this.materials.wood);
     this.box(this.caseGroup, [d.frontBackLengthMm, d.frontBackHeightMm, t], [0, d.frontBackHeightMm / 2, outerDepth / 2 - t / 2], this.materials.wood);
     this.box(this.caseGroup, [d.frontBackLengthMm, d.frontBackHeightMm, t], [0, d.frontBackHeightMm / 2, -outerDepth / 2 + t / 2], this.materials.wood);
-
     this.buildGrid(this.caseGroup, config, d, t);
-    this.buildCorners(this.caseGroup, outerWidth, outerDepth, d.sideHeightMm, t);
+    this.buildCorners(this.caseGroup, outerWidth, outerDepth, d.sideHeightMm, t, config);
     this.buildFrontHardware(this.caseGroup, config, d, t);
     const lidPivot = this.buildLid(this.caseGroup, config, d, t);
-    this.buildHinges(this.caseGroup, lidPivot, d, t);
+    this.buildHinges(this.caseGroup, lidPivot, d, t, config.lidThicknessMm);
     this.buildDrillMarkers(this.panelGeometry, d);
     this.fastenerCounts = verifyFastenerAssembly(this.caseGroup, config);
-
-    this.target.set(0, d.sideHeightMm * (this.open ? 1.0 : 0.52), this.open ? -outerDepth * 0.08 : 0);
-    this.distance = Math.max(520, Math.max(outerWidth, outerDepth) * (this.open ? 2.25 : 1.75));
+    this.fitView();
     this.render();
   }
-
   update(bom, geometry) {
     this.bom = bom;
     this.panelGeometry = geometry || null;
     this.rebuild(bom);
   }
-
   setOpen(open) {
     const nextOpen = Boolean(open);
     this.open = nextOpen;
@@ -788,13 +788,13 @@ class WoodCaseViewer {
       const progress = Math.min(1, (now - startedAt) / duration);
       const eased = 1 - Math.pow(1 - progress, 3);
       this.lidPivot.rotation.x = THREE.MathUtils.lerp(startAngle, targetAngle, eased);
+      this.fitView();
       this.render();
       if (progress < 1) this.lidAnimationFrame = requestAnimationFrame(animate);
       else this.lidAnimationFrame = null;
     };
     this.lidAnimationFrame = requestAnimationFrame(animate);
   }
-
   reset() {
     this.yaw = -0.72;
     this.pitch = 0.48;

@@ -209,6 +209,11 @@ p {
   font-weight: 720;
 }
 
+.btn-check:disabled + .choice {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .btn-check:focus-visible + .choice,
 button:focus-visible,
 a:focus-visible,
@@ -218,3 +223,8 @@ summary:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
+
+.build-options { display: grid; gap: 14px; margin-top: 6px; grid-column: 1 / -1; }
+.build-options .control-group[hidden] { display: none; }
+.build-options small { display: block; max-width: 74ch; margin-top: 8px; color: var(--muted); line-height: 1.45; }
+.assembly-notes li { margin: 0.7em 0; line-height: 1.5; }

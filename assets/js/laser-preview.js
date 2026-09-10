@@ -57,7 +57,7 @@
     const cards = layout.groups.map((group) => [
       `<article class="laser-layout-card">`,
       `<h3>${escapeHtml(group.filename)}</h3>`,
-      `<p>Cut ${group.quantity} identical physical sheet${group.quantity === 1 ? "" : "s"}</p>`,
+      `<p>${escapeHtml(group.representative.material)} · ${group.representative.thicknessMm} mm · Cut ${group.quantity} identical physical sheet${group.quantity === 1 ? "" : "s"}</p>`,
       renderLaserSheetSvg(group),
       `</article>`,
     ].join("")).join("");

@@ -106,10 +106,9 @@
       return;
     }
     for (const [key, value] of Object.entries(preferences.config)) {
-      const input = doc.querySelector(`[name="${key}"][value="${value}"]`);
-      if (input) {
-        input.checked = true;
-      }
+      const input = doc.querySelector(`[name="${key}"]`);
+      if (input?.type === "checkbox") input.checked = value === true;
+      else { const radio = doc.querySelector(`[name="${key}"][value="${value}"]`); if (radio) radio.checked = true; }
     }
     const woodControlValues = {
       caseSetCount: preferences.woodSheet.caseSetCount,

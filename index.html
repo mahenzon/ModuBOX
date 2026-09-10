@@ -23,7 +23,7 @@
         <span class="workflow-step-number" aria-hidden="true">1</span>
         <div>
           <h2 id="step-configure-title">Choose your case size</h2>
-          <p>Start with the wood thickness and the number of ModuBOX units the case must hold.</p>
+          <p>Choose the body size, then add a transparent lid, the 2H fixed handle or a thin lip.</p>
         </div>
       </div>
 
@@ -60,7 +60,7 @@
           <div id="model3d" class="model3d" aria-label="Interactive 3D case model"></div>
           <details id="modelDimensions" class="model-dimensions" open>
             <summary>
-              <span><strong>Dimensions</strong><small>Selected size and wood panels</small></span>
+              <span><strong>Dimensions</strong><small>Selected size and panels</small></span>
             </summary>
             <div id="modelDimensionsContent" class="model-dimensions-content" aria-live="polite"></div>
           </details>
@@ -72,7 +72,7 @@
         <span class="workflow-step-number" aria-hidden="true">3</span>
         <div>
           <h2 id="step-materials-title">Plan materials and cutting</h2>
-          <p>Review the generated parts list, then prepare a wood-sheet plan or cutter-ready DXF files.</p>
+          <p>Review the generated parts list, then prepare a sheet plan or cutter-ready DXF files.</p>
         </div>
       </div>
 
@@ -88,7 +88,7 @@
 
         <fieldset class="cutting-settings" aria-describedby="cuttingSettingsHelp">
           <legend>Shared cutting settings</legend>
-          <p id="cuttingSettingsHelp">Case quantity applies to both tools. Stock size, spacing, and rotation apply to the Wood Sheet Calculator and Full-sheet DXF.</p>
+          <p id="cuttingSettingsHelp">Case quantity applies to both tools. Stock size, spacing, and rotation apply to the Sheet Calculator and Full-sheet DXF.</p>
           <div class="cutting-settings-grid">
             <label>
               <span>Case quantity</span>
@@ -108,7 +108,7 @@
             <label>
               <span>Saw kerf / laser gap</span>
               <input class="wood-sheet-input" id="sheetKerfMm" type="number" min="0" step="0.1" value="3" aria-describedby="sheetGapHelp">
-              <small id="sheetGapHelp">Blade width for the wood plan; panel spacing for Full DXF (minimum 0.10 mm)</small>
+              <small id="sheetGapHelp">Blade width for the sheet plan; panel spacing for Full DXF (minimum 0.10 mm)</small>
             </label>
             <label class="checkbox-control">
               <input class="wood-sheet-input" id="allowPartRotation" type="checkbox" checked>
@@ -121,7 +121,7 @@
           <details id="woodCuttingTool" class="cutting-tool wood-sheet-panel">
             <summary>
               <span>
-                <strong id="wood-sheet-title">Wood Sheet Calculator</strong>
+                <strong id="wood-sheet-title">Sheet Calculator</strong>
                 <small>Saw / guillotine sheet estimate and cutting order</small>
               </span>
             </summary>

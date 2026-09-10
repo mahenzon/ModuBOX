@@ -964,7 +964,7 @@ test("new browsers start with the 6 mm, 6W, 5D, 4H case configuration", () => {
     depthBoxes: 5,
     heightLevel: 4,
   };
-  assert.deepEqual(app.getDefaultConfig(), expected);
+  assert.deepEqual(app.getDefaultConfig(), { ...expected, clearLid: false, lidMaterial: "wood", lidThicknessMm: 6, handle2H: "none", lipStyle: "standard", cornerFastening: "bolts", cornerScrewLengthMm: 0 });
   assert.equal(app.loadPreferences({ getItem() { return null; } }), null);
   const controls = { innerHTML: "" };
   app.renderControls({
@@ -973,6 +973,7 @@ test("new browsers start with the 6 mm, 6W, 5D, 4H case configuration", () => {
       return controls;
     },
   });
+  assert(!controls.innerHTML.includes('name="lidMaterial"'), "plastic type is not a build choice");
   for (const [key, value] of Object.entries(expected)) {
     assert.match(
       controls.innerHTML,
@@ -1000,6 +1001,7 @@ test("saved version-1 preferences preserve configuration and default old DXF cle
   };
   const preferences = app.loadPreferences(storage);
   assert.deepEqual(preferences.config, {
+    ...app.getDefaultConfig(), lidThicknessMm: 8,
     materialThicknessMm: 8,
     widthBoxes: 7,
     depthBoxes: 6,
@@ -1143,8 +1145,8 @@ test("vendored Three.js initializes the detailed viewer without network imports"
   assert.equal(typeof context.WOODCASE_DRILL_MARKERS_3D.createDrillMarkerPlan, "function");
   const twoH = context.WOODCASE_3D.getFastenerManifest({ heightLevel: 2, hasHandle: false });
   const fourH = context.WOODCASE_3D.getFastenerManifest({ heightLevel: 4, hasHandle: true });
-  assert.equal(twoH.primaryM3.total, 30);
-  assert.equal(twoH.primaryM3.corners, 16);
+  assert.equal(twoH.primaryM3.total, 34);
+  assert.equal(twoH.primaryM3.corners, 20);
   assert.equal(twoH.primaryM3.hinges, 8);
   assert.equal(twoH.primaryM3.lip, 2);
   assert.equal(twoH.primaryM3.lidLocks, 4);
@@ -1156,14 +1158,14 @@ test("vendored Three.js initializes the detailed viewer without network imports"
   assert.equal(fourH.handleM4x50, 2);
 
   const plan = context.WOODCASE_3D.getFastenerRenderPlan({ heightLevel: 4, hasHandle: true });
-  assert.equal(plan.length, 42, "30 primary + 8 frame + 2 hinge pins + 2 handle bolts");
+  assert.equal(plan.length, 46, "34 primary + 8 frame + 2 hinge pins + 2 handle bolts");
   const fakeScene = {
     traverse(visitor) {
       for (const entry of plan) visitor({ userData: { fastener: entry.fastener } });
     },
   };
   const builtCounts = context.WOODCASE_3D.verifyFastenerAssembly(fakeScene, { heightLevel: 4, hasHandle: true });
-  assert.equal(builtCounts["primaryM3:corners"], 16);
+  assert.equal(builtCounts["primaryM3:corners"], 20);
   assert.throws(
     () => context.WOODCASE_3D.verifyFastenerAssembly({ traverse() {} }, { heightLevel: 4, hasHandle: true }),
     /fastener count mismatch/,
@@ -1301,8 +1303,8 @@ test("preview dimensions use one collapsible block with panels and callouts toge
   assert.match(content.innerHTML, /6 × 5 cells/);
   assert.match(content.innerHTML, /Recessed lid construction/);
   assert.match(content.innerHTML, /lid fits between the side panels/i);
-  assert.match(content.innerHTML, /top is flush with the side-panel tops/i);
-  assert.match(content.innerHTML, /class="panel-dimensions-heading">Wood panels/);
+  assert.match(content.innerHTML, /top is flush with the sides when lid and body thicknesses match/i);
+  assert.match(content.innerHTML, /class="panel-dimensions-heading">Panels/);
   assert.match(content.innerHTML, /Front \/ back ×2/);
   assert(!content.innerHTML.includes("<details"), "wood panels have no nested disclosure");
   assert(!content.innerHTML.includes("Computed wood panels"));
@@ -1476,4 +1478,310 @@ test("cut instructions and panel positions preserve fractional kerf coordinates"
     }
     for (const part of sheet.placements) assert(html.includes(`${display(part.x)}, ${display(part.y)} mm`));
   }
+});
+
+test("updated package options keep parts, fasteners, controls and mixed stock consistent", () => {
+  const hardwareQty = (bom, id) => bom.hardware.find((row) => row.id === id)?.quantity || 0;
+  for (const t of app.catalog.parameters.materialThicknessMm.values) {
+    for (const W of app.catalog.parameters.widthBoxes.values) {
+      for (const lt of app.catalog.buildOptions.lidThicknessMm.values) {
+        const bom = app.buildBom({ materialThicknessMm: t, widthBoxes: W, heightLevel: 2, handle2H: "fixed", clearLid: true, lidThicknessMm: lt });
+        const geometry = app.createPanelGeometry(bom);
+        const lid = geometry.parts.find((part) => part.role === "lid");
+        const holes = geometry.parts[0].holes.filter((hole) => hole.family === "fixedHandle");
+        assert.deepEqual(holes.map((hole) => hole.xMm), [-102, -65, 65, 102].map((x) => W * 55 / 2 + x));
+        assert(holes.every((hole) => hole.yMm === 7.25 && hole.baseDiameterMm === 3.5));
+        assert.equal(geometry.parts[1].holes.length, 8, "back has no handle holes");
+        assert.equal(lid.material, "clear plastic");
+        assert.equal(lid.thicknessMm, lt);
+        assert.equal(bom.dimensions.sideHeightMm, 40 + t, "retrofit keeps the body panels");
+        assert.equal(hardwareQty(bom, "m3-primary-countersunk") + hardwareQty(bom, "m3-lid-countersunk"), 34);
+        assert.equal(hardwareQty(bom, "nut-nyloc-m3"), 44);
+        assert.equal(hardwareQty(bom, "m3-frame-countersunk"), 8);
+        assert.equal(hardwareQty(bom, "nut-nyloc-m4") + hardwareQty(bom, "m4-socket-head-50"), 0);
+        assert.equal(bom.printedParts.find((part) => part.id === "handle-2h").quantity, 2);
+        assert(bom.printedParts.find((part) => part.id === "hinges").stlFile.endsWith(`Hinges_${lt}mm.${lt < 6 ? "stl" : "STL"}`));
+        assert(bom.printedParts.find((part) => part.id === "locks").stlFile.endsWith(`Lock_${t}mm.STL`));
+        assert(bom.recommendedParts[0].note.includes("FRONT only"));
+        if (W === 5 || lt < 6) assert.throws(() => app.buildBom({ ...bom.configuration, lipStyle: "thin" }), /Thin lip/);
+        else assert(app.buildBom({ ...bom.configuration, lipStyle: "thin" }).printedParts.some((part) => part.stlFile.includes(`Lip_Thin_6-8 wide_${lt}mm.stl`)));
+      }
+    }
+  }
+  assert.throws(() => app.buildBom({ materialThicknessMm: 8, cornerFastening: "wood-screws" }), /9–12 mm/);
+  const mixed = app.buildBom({ materialThicknessMm: 9, heightLevel: 2, handle2H: "fixed", clearLid: true, lidThicknessMm: 4 });
+  assert.match(app.renderModel3dSvg(mixed.configuration, mixed, { open: false, yaw: 0.4, pitch: -0.4 }), /model-clear-lid/);
+  assert.match(app.renderModel3dSvg(mixed.configuration, mixed, { open: false, yaw: 0.4, pitch: -0.4 }), /model-grid-line/);
+  assert.match(app.exportBomAsMarkdown(mixed), /Lid: clear plastic, 4 mm/);
+  assert.match(app.exportBomAsCsv(mixed), /assembly-note/);
+  const options = { caseSetCount: 2, sheetLengthMm: 1000, sheetWidthMm: 500, kerfMm: 2 };
+  for (const cutThroughOnly of [false, true]) {
+    const plan = app.calculateWoodSheetPlan(mixed, { ...options, cutThroughOnly });
+    assert(plan.success);
+    assert.equal(plan.pieces.length, 12);
+    assert.equal(new Set(plan.pieces.map((piece) => piece.mark)).size, 12);
+    for (const sheet of plan.sheets) assert(sheet.placements.every((piece) => piece.material === sheet.material && piece.thicknessMm === sheet.thicknessMm));
+  }
+  const full = app.createFullDxfLayout(mixed, options, 0.1);
+  const archive = app.createFullDxfExport(mixed, full);
+  assert(archive.manifest.files.some((file) => file.material === "clear plastic" && file.thicknessMm === 4));
+  assert(archive.manifest.files.some((file) => file.material === "wood" && file.thicknessMm === 9));
+  for (const group of full.groups) assertCutDxf(archive.files.find((file) => file.filename === group.filename).content, group.representative.panels);
+  for (const lidMaterial of ["acrylic", "polycarbonate"]) {
+    const legacy = app.loadPreferences({ getItem() { return JSON.stringify({ version: 1, config: { ...mixed.configuration, lidMaterial } }); } });
+    assert.deepEqual(app.buildBom(legacy.config), mixed, "old material choices migrate to the same clear sheet");
+  }
+  assert.match(archive.filename, /clear-plastic-4mm-lid/);
+  assert(archive.files.every((file) => !file.filename.includes(" ")));
+  const sameThickness = app.buildBom({ ...mixed.configuration, lidThicknessMm: 9 });
+  assert(app.calculateWoodSheetPlan(sameThickness, options).sheets.every((sheet) => new Set(sheet.placements.map((part) => part.material)).size === 1));
+  const browser = startBrowser();
+  const { inputs: controls, elements: fields, set } = browser;
+  for (const [key, value] of Object.entries(mixed.configuration)) if (controls[key]) set(key, value);
+  const config = () => browser.context.WOODCASE_APP.getCurrentBom().configuration;
+  assert.equal(config().handle2H, "fixed");
+  assert.equal(fields["option-handle2H"].hidden, false, "numeric radio strings must expose the 2H handle");
+  assert.equal(controls.cornerFastening[1].disabled, false);
+  set("cornerFastening", "wood-screws");
+  set("materialThicknessMm", 12);
+  set("cornerScrewLengthMm", 18);
+  assert.equal(config().cornerScrewLengthMm, 18);
+  assert.equal(controls.cornerScrewLengthMm[0].nextElementSibling.textContent, "Auto (18 mm)");
+  assert.equal(fields["option-cornerScrewLengthMm"].hidden, false);
+  set("materialThicknessMm", 9);
+  assert.equal(config().cornerScrewLengthMm, 0, "reset a length that would protrude after changing stock");
+  assert.equal(controls.cornerScrewLengthMm[0].checked, true);
+  assert.equal(controls.cornerScrewLengthMm[0].nextElementSibling.textContent, "Auto (16 mm)");
+  assert.equal(controls.cornerScrewLengthMm.at(-1).disabled, true);
+  set("materialThicknessMm", 8);
+  assert.equal(config().cornerFastening, "bolts");
+  assert.equal(controls.cornerFastening[1].disabled, true);
+  assert.equal(fields["option-cornerScrewLengthMm"].hidden, true);
+  set("heightLevel", 4);
+  set("clearLid", false);
+  assert.equal(fields["option-handle2H"].hidden, true);
+  assert.equal(fields["option-lidThicknessMm"].hidden, true);
+});
+
+test("screw corners replace only corner hardware and through-holes across supported case sizes", () => {
+  const qty = (bom, id) => bom.hardware.find((row) => row.id === id)?.quantity || 0;
+  for (const t of [9, 10, 11, 12]) for (const H of [2, 3, 4, 5, 6]) {
+    for (const W of [5, 6, 7, 8]) for (const D of [5, 6, 7]) for (const clearLid of [false, true]) {
+      const input = { materialThicknessMm: t, heightLevel: H, widthBoxes: W, depthBoxes: D, clearLid, lidThicknessMm: 4, handle2H: clearLid ? "fixed" : "none" };
+      const bolts = app.buildBom(input);
+      const screws = app.buildBom({ ...input, cornerFastening: "wood-screws" });
+      assert.equal(qty(screws, "corner-wood-screw"), 20);
+      assert.equal(qty(screws, "m3-primary-countersunk") + qty(screws, "m3-lid-countersunk"), 14);
+      assert.equal(qty(screws, "nut-nyloc-m3"), screws.configuration.hasHandle ? 24 : 20);
+      assert.equal(qty(screws, "m3-frame-countersunk"), qty(bolts, "m3-frame-countersunk"));
+      assert.equal(qty(screws, "m4-socket-head-50"), qty(bolts, "m4-socket-head-50"));
+      assert(!screws.printedParts.some((part) => part.id === "corners"));
+      const corners = screws.printedParts.find((part) => part.id === "screw-corners");
+      assert.equal(corners.quantity, 4);
+      assert.equal(corners.stlFile, `Case Parts/screw corners/screw corner_${H}H_${t}mm.STL`);
+      assert.equal(corners.bambu3mfFile, "");
+      assert(!screws.recommendedParts.some((part) => part.id === "template-side"));
+      const before = app.createPanelGeometry(bolts, 0.1);
+      const after = app.createPanelGeometry(screws, 0.1);
+      assert.equal(before.holeCount - after.holeCount, 20);
+      for (const [i, panel] of after.parts.entries()) {
+        assert.deepEqual(panel.outline, before.parts[i].outline);
+        const remaining = ["left-side", "right-side", "bottom"].includes(panel.role) ? [] : before.parts[i].holes.filter((hole) => !hole.id.includes(":edge-"));
+        assert.deepEqual(panel.holes, remaining, "all other attachments retain their exact drilling");
+      }
+    }
+  }
+  const input = { materialThicknessMm: 9, heightLevel: 2, handle2H: "fixed", clearLid: true, lidThicknessMm: 4, cornerFastening: "wood-screws" };
+  assert.throws(() => app.buildBom({ ...input, cornerScrewLengthMm: 18 }), /inner face/);
+  const bom = app.buildBom({ ...input, cornerScrewLengthMm: 14 });
+  assert.match(bom.hardware.find((row) => row.id === "corner-wood-screw").use, /14 mm length \(selected\), 6 mm nominal penetration/);
+  assert.match(app.exportBomAsMarkdown(bom), /screw corners\/screw corner_2H_9mm.STL/);
+  assert.match(app.exportBomAsCsv(bom), /corner through-holes are omitted/);
+  const separate = dxfExport.createSeparateDxfExport(bom, 2, 0.1);
+  assert(separate.manifest.files.every((file) => file.filename.includes("-screw-corners-")));
+  assert.equal(separate.geometry.holeCount, 22);
+  const full = app.createFullDxfLayout(bom, { caseSetCount: 2, sheetLengthMm: 1000, sheetWidthMm: 500, kerfMm: 2 }, 0.1);
+  const archive = app.createFullDxfExport(bom, full);
+  for (const group of full.groups) {
+    assert(group.filename.includes("-screw-corners-"));
+    assertCutDxf(archive.files.find((file) => file.filename === group.filename).content, group.representative.panels);
+  }
+});
+
+test("real Three.js assemblies render the new handle, lid and all BOM fasteners", () => {
+  const context = { console: { log() {}, warn() {}, error() {} } };
+  context.window = context; context.self = context; context.globalThis = context;
+  vm.createContext(context);
+  for (const file of ["assets/js/drill-markers3d.js", "assets/vendor/three.min.js", "assets/js/model3d.js"]) vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context);
+  const Three = context.THREE;
+  const viewer = Object.create(vm.runInContext("WoodCaseViewer.prototype", context));
+  viewer.scene = new Three.Scene(); viewer.caseGroup = new Three.Group(); viewer.target = new Three.Vector3();
+  viewer.camera = new Three.PerspectiveCamera(34, 1, 1, 4000);
+  viewer.materials = Object.fromEntries(["wood", "clear", "grid", "gridBase", "printed", "printedDark", "metal", "fastener", "drill"].map((name) => [name, new Three.MeshStandardMaterial({ transparent: name === "clear", opacity: name === "clear" ? 0.2 : 1 })]));
+  viewer.open = false; viewer.yaw = -0.72; viewer.pitch = 0.48; viewer.caseLabel = () => {};
+  viewer.renderer = { render(scene, camera) { scene.updateMatrixWorld(true); camera.updateMatrixWorld(true); } };
+  for (const input of [
+    { heightLevel: 2 },
+    { heightLevel: 2, materialThicknessMm: 9, handle2H: "fixed", clearLid: true, lidThicknessMm: 4 },
+    { heightLevel: 3, materialThicknessMm: 6, clearLid: true, lidThicknessMm: 12 },
+    { heightLevel: 4, lipStyle: "thin" },
+    { heightLevel: 2, materialThicknessMm: 9, handle2H: "fixed", clearLid: true, lidThicknessMm: 4, cornerFastening: "wood-screws" },
+    { heightLevel: 6, materialThicknessMm: 12, cornerFastening: "wood-screws" },
+  ]) {
+    const bom = app.buildBom(input);
+    viewer.panelGeometry = app.createPanelGeometry(bom);
+    viewer.rebuild(bom);
+    const counts = context.WOODCASE_3D.verifyFastenerAssembly(viewer.caseGroup, bom.configuration);
+    assert.equal(counts["primaryM3:corners"] || 0, input.cornerFastening === "wood-screws" ? 0 : 20);
+    assert.equal(counts.cornerWoodScrew || 0, bom.hardware.find((row) => row.id === "corner-wood-screw")?.quantity || 0);
+    if (counts.cornerWoodScrew) {
+      const head = viewer.caseGroup.getObjectByName("fastener:cornerWoodScrew");
+      assert.equal(head.geometry.parameters.radiusTop, 3.5);
+      assert.equal(head.geometry.parameters.radiusBottom, 1.5);
+    }
+    const primary = Object.entries(counts).filter(([key]) => key.startsWith("primaryM3:")).reduce((sum, [, count]) => sum + count, 0);
+    assert.equal(primary, bom.hardware.filter((row) => ["m3-primary-countersunk", "m3-lid-countersunk"].includes(row.id)).reduce((sum, row) => sum + row.quantity, 0));
+    assert.equal(Boolean(viewer.caseGroup.getObjectByName("handle:fixed-grip")), bom.configuration.handleStyle === "fixed");
+    assert.equal(counts.handleM4x50 || 0, bom.hardware.find((row) => row.id === "m4-socket-head-50")?.quantity || 0);
+    viewer.caseGroup.updateMatrixWorld(true);
+    const box = (node) => new Three.Box3().setFromObject(node);
+    const feet = viewer.caseGroup.children.filter((node) => node.name === "corner:bottom-foot").map(box);
+    assert.equal(feet.length, 4);
+    for (const screw of viewer.caseGroup.children.filter((node) => /^(cornerWoodScrew|primaryM3:corners)$/.test(node.userData.fastener) && node.position.y < 1)) {
+      const point = screw.getWorldPosition(new Three.Vector3());
+      const radius = counts.cornerWoodScrew ? 3.5 : 3.15;
+      assert(feet.some((foot) => point.x - radius >= foot.min.x && point.x + radius <= foot.max.x && point.z - radius >= foot.min.z && point.z + radius <= foot.max.z), "bottom foot supports the complete screw head");
+    }
+    const frontZ = bom.dimensions.bottomHeightMm / 2;
+    const backing = viewer.caseGroup.getObjectByName("handle:fixed-backing");
+    if (backing) assert(Math.abs(box(backing).min.z - frontZ) < 1e-6, "fixed handle seats on front wood");
+    for (const leaf of viewer.caseGroup.children.filter((node) => node.name === "hinge:fixed-back-leaf")) assert(Math.abs(box(leaf).max.z + frontZ) < 1e-6, "hinge seats on rear wood");
+    const lid = viewer.caseGroup.getObjectByName(bom.configuration.clearLid ? "lid:transparent-panel" : "lid:wood-panel");
+    const bounds = new Three.Box3().setFromObject(lid);
+    assert(Math.abs(bounds.min.y - bom.dimensions.frontBackHeightMm) < 1e-6);
+    assert(Math.abs(bounds.max.y - bom.dimensions.frontBackHeightMm - bom.configuration.lidThicknessMm) < 1e-6);
+    const hinge = context.WOODCASE_3D.getHingeLayout(bom.dimensions, bom.configuration.materialThicknessMm, bom.configuration.lidThicknessMm);
+    assert(hinge.fixedLeafCenterY + hinge.fixedLeafHeight / 2 >= hinge.axisY - 3.1, "fixed hinge leaf must reach the pin");
+    assert(hinge.fixedLeafCenterY - hinge.fixedLeafHeight / 2 < hinge.fixedScrewY, "body attachment holes stay inside the fixed leaf");
+    const panel = { open: true }; const content = { innerHTML: "" };
+    app.renderModelDimensions(bom.configuration, bom, { getElementById(id) { return id === "modelDimensions" ? panel : content; } }, { dimensionsOpen: true });
+    assert(content.innerHTML.includes(`${Math.max(bom.dimensions.sideHeightMm, bounds.max.y)} mm panels with lid`));
+    for (const aspect of [707 / 500, 340 / 410]) {
+      viewer.camera.aspect = aspect;
+      for (const angle of [0, -Math.PI * 0.3, -Math.PI * 0.6]) {
+        viewer.lidPivot.rotation.x = angle;
+        viewer.fitView(); viewer.render();
+        viewer.caseGroup.traverse((node) => {
+          const vertices = node.geometry?.attributes?.position;
+          if (!vertices) return;
+          const point = new Three.Vector3();
+          for (let i = 0; i < vertices.count; i += 1) {
+            point.fromBufferAttribute(vertices, i).applyMatrix4(node.matrixWorld).project(viewer.camera);
+            assert(Math.abs(point.x) <= 1 && Math.abs(point.y) <= 1 && Math.abs(point.z) < 1, "desktop/mobile camera fits every vertex while opening");
+          }
+        });
+      }
+    }
+  }
+});
+
+function startBrowser(storage = new Map()) {
+  const inputs = {}, elements = {}, downloads = [];
+  const element = (props = {}) => ({
+    value: "", innerHTML: "", textContent: "", dataset: {}, listeners: {}, attributes: {},
+    addEventListener(type, callback) { this.listeners[type] = callback; },
+    fire(type) { this.listeners[type]?.({ target: this }); },
+    setAttribute(key, value) { this.attributes[key] = value; },
+    removeAttribute(key) { delete this.attributes[key]; },
+    querySelectorAll() { return []; },
+    ...props,
+  });
+  const catalog = require(path.join(root, "assets/js/catalog.js"));
+  for (const [key, spec] of Object.entries({ ...catalog.parameters, ...catalog.buildOptions })) {
+    inputs[key] = spec.values.map((value) => element({
+      value: String(value), type: key === "clearLid" ? "checkbox" : "radio", tagName: "INPUT",
+      checked: value === spec.defaultValue, nextElementSibling: { textContent: "" },
+    }));
+    if (key === "clearLid") {
+      inputs[key] = [element({ ...inputs[key][0], value: String(spec.defaultValue), checked: false })];
+    }
+    elements[`option-${key}`] = element();
+    for (const input of inputs[key]) {
+      let checked = input.checked;
+      Object.defineProperty(input, "checked", { get: () => checked, set(value) {
+        if (value && input.type === "radio") for (const other of inputs[key]) if (other !== input) other.checked = false;
+        checked = value;
+      } });
+    }
+  }
+  for (const id of ["controls", "build-options", "summary", "bom", "preview", "model3d", "woodSheetResult", "dxfExportStatus", "dxfLaserPreview", "modelDimensions", "modelDimensionsContent", "openCaseModel", "resetModelView", "downloadMarkdown", "downloadDxfFull", "downloadDxfSeparate", "printBom", "exportFormat", "laserCuttingTool"]) elements[id] = element({ open: true });
+  for (const [id, value] of Object.entries({ caseSetCount: 1, sheetLengthMm: 1000, sheetWidthMm: 500, sheetKerfMm: 3, holeClearanceMm: 0.1 })) elements[id] = element({ value: String(value) });
+  elements.allowPartRotation = element({ checked: true });
+  elements.cutThroughOnly = element({ checked: false });
+  elements.controls.querySelectorAll = () => Object.values(inputs).flat();
+  const doc = {
+    getElementById(id) { return elements[id] || null; },
+    querySelector(selector) {
+      const key = selector.match(/name="([^"]+)"/)[1];
+      const value = selector.match(/value="([^"]+)"/)?.[1];
+      return inputs[key]?.find((input) => value !== undefined ? input.value === value : !selector.endsWith(":checked") || input.checked) || null;
+    },
+    querySelectorAll(selector) {
+      const key = selector.match(/name="([^"]+)"/)?.[1];
+      return key ? inputs[key] || [] : [elements.holeClearanceMm, elements.sheetKerfMm];
+    },
+    createElement() { return { click() {}, remove() {} }; },
+    body: { appendChild() {} }, addEventListener() {},
+  };
+  const context = {
+    document: doc, Blob, TextEncoder, console,
+    URL: { createObjectURL(blob) { downloads.push(blob); return "blob:qa"; }, revokeObjectURL() {} },
+    localStorage: { getItem(key) { return storage.get(key) || null; }, setItem(key, value) { storage.set(key, value); } },
+    setTimeout() {},
+    WOODCASE_3D: { mount() { return { update(bom, geometry) { elements.model3d.bom = bom; elements.model3d.geometry = geometry; } }; } },
+  };
+  context.window = context;
+  vm.createContext(context);
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  for (const [, file] of html.matchAll(/<script[^>]*src="([^"]+)"/g)) {
+    if (file.includes("vendor/") || file.endsWith("model3d.js")) continue;
+    vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context, { filename: file });
+  }
+  context.WOODCASE_APP.initApp(doc);
+  const set = (key, value) => {
+    for (const input of inputs[key]) {
+      if (input.type === "radio") input.checked = input.value === String(value);
+      else if (input.type === "checkbox") input.checked = value;
+      else input.value = String(value);
+    }
+    (inputs[key].find((input) => input.checked) || inputs[key][0]).fire("change");
+  };
+  return { context, elements, inputs, downloads, storage, set };
+}
+
+test("dependent controls match saved version-1 config through transitions and reload", () => {
+  const browser = startBrowser();
+  browser.set("heightLevel", 2);
+  browser.set("handle2H", "fixed");
+  browser.set("heightLevel", 3);
+  assert.equal(browser.inputs.handle2H.find((input) => input.checked).value, "none");
+  browser.set("clearLid", true);
+  browser.set("lidThicknessMm", 4);
+  browser.set("clearLid", false);
+  assert.equal(Number(browser.inputs.lidThicknessMm.find((input) => input.checked).value), 6);
+  const stored = JSON.parse([...browser.storage.values()][0]);
+  assert.equal(stored.version, 1);
+  const reloaded = startBrowser(browser.storage);
+  for (const b of [browser, reloaded]) {
+    b.set("heightLevel", 2);
+    b.set("clearLid", true);
+    assert.equal(b.context.WOODCASE_APP.getCurrentBom().configuration.handle2H, "none");
+    assert.equal(b.context.WOODCASE_APP.getCurrentBom().configuration.lidThicknessMm, 6);
+  }
+  browser.set("materialThicknessMm", 12);
+  browser.set("cornerFastening", "wood-screws");
+  browser.set("cornerScrewLengthMm", 14);
+  const manual = startBrowser(browser.storage);
+  assert.equal(manual.inputs.cornerScrewLengthMm.find((input) => input.checked).value, "14");
+  assert.equal(manual.context.WOODCASE_APP.getCurrentBom().hardware.find((row) => row.id === "corner-wood-screw").item, "Countersunk wood screw, 14 mm long");
 });

@@ -100,10 +100,11 @@
 }
 
 .model3d canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
-  min-height: 520px;
 }
 
 .model-dimensions {
@@ -520,3 +521,7 @@
 .label-plate {
   opacity: 0.72;
 }
+
+.model-clear-lid { fill: #c4e9ed; fill-opacity: 0.2; stroke: #4b929e; }
+
+.clear-panel { fill: #e5f6f7; stroke: #4b929e; stroke-width: 1.4; }

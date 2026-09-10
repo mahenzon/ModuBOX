@@ -33,6 +33,7 @@
         basePieces.push({
           id: `${part.id}-${index}`,
           partId: part.id,
+          material: part.material || "wood", thicknessMm: part.thicknessMm || bom.configuration?.materialThicknessMm,
           item: part.item,
           partCopy: index,
           lengthMm: part.lengthMm,
@@ -637,7 +638,7 @@
   function getWoodSheetCacheKey(pieces, options) {
     return JSON.stringify({
       options,
-      pieces: pieces.map((piece) => [piece.mark, piece.lengthMm, piece.widthMm]),
+      pieces: pieces.map((piece) => [piece.mark, piece.lengthMm, piece.widthMm, piece.material, piece.thicknessMm]),
     });
   }
 
@@ -653,10 +654,10 @@
     return cloneWoodSheetPlan(plan);
   }
 
-  function calculateWoodSheetPlan(bomInput, optionsInput) {
+  function packWoodSheetPlan(bomInput, optionsInput, piecesInput) {
     const bom = bomInput || getCurrentBom();
     const options = normalizeWoodSheetOptions(optionsInput);
-    const pieces = expandWoodPieces(bom, options.caseSetCount).sort(
+    const pieces = (piecesInput || expandWoodPieces(bom, options.caseSetCount)).slice().sort(
       (a, b) => Math.max(b.lengthMm, b.widthMm) - Math.max(a.lengthMm, a.widthMm) || b.areaMm2 - a.areaMm2,
     );
     const cacheKey = getWoodSheetCacheKey(pieces, options);
@@ -683,7 +684,7 @@
           `${impossiblePiece.item} (${formatSize(impossiblePiece.lengthMm, impossiblePiece.widthMm)}) does not fit on one sheet.`,
         ],
         explanation: [
-          `The cut list was expanded into ${pieces.length} rectangular wooden pieces for ${formatCount(options.caseSetCount, "complete case set")}.`,
+          `The cut list was expanded into ${pieces.length} rectangular panel pieces for ${formatCount(options.caseSetCount, "complete case set")}.`,
           `At least ${formatCount(lowerBound, "sheet")} would be needed by area alone, but one piece is larger than the selected sheet size.`,
         ],
       });
@@ -714,7 +715,7 @@
           pieces,
           warnings: [],
           explanation: [
-            `The wood cut list was expanded into ${pieces.length} rectangular pieces for ${formatCount(options.caseSetCount, "complete case set")}. Letters mark sets: a is the first case, b is the second case, and so on.`,
+            `The panel cut list was expanded into ${pieces.length} rectangular pieces for ${formatCount(options.caseSetCount, "complete case set")}. Letters mark sets: a is the first case, b is the second case, and so on.`,
             `Total part area is ${Math.round(totalPieceAreaMm2).toLocaleString()} mm². One sheet is ${Math.round(totalSheetAreaMm2).toLocaleString()} mm², so the area-only lower bound is ${formatCount(lowerBound, "sheet")}.`,
             options.cutThroughOnly
               ? `Cut-through mode groups matching panels into shared strips, then uses guillotine packing. Sheet count is minimized first; layouts using the same number of sheets are ranked by fewer edge-to-edge cuts.`
@@ -740,11 +741,41 @@
       pieces,
       warnings: ["No fitting layout was found with one sheet per wooden piece."],
       explanation: [
-        `The cut list was expanded into ${pieces.length} rectangular wooden pieces for ${formatCount(options.caseSetCount, "complete case set")}.`,
+        `The cut list was expanded into ${pieces.length} rectangular panel pieces for ${formatCount(options.caseSetCount, "complete case set")}.`,
         "Try a larger sheet size, a smaller kerf/gap, or allow rotating parts.",
       ],
     });
   }
 
+  function calculateWoodSheetPlan(bomInput, optionsInput) {
+    const bom = bomInput || getCurrentBom();
+    const options = normalizeWoodSheetOptions(optionsInput);
+    const groups = new Map();
+    for (const piece of expandWoodPieces(bom, options.caseSetCount)) {
+      const key = `${piece.material}:${piece.thicknessMm}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(piece);
+    }
+    const plans = [...groups.values()].map((pieces) => {
+      const plan = packWoodSheetPlan(bom, options, pieces);
+      plan.sheets.forEach((sheet) => { sheet.material = pieces[0].material; sheet.thicknessMm = pieces[0].thicknessMm; });
+      return plan;
+    });
+    if (plans.length === 1) return plans[0];
+    const sheets = plans.flatMap((plan) => plan.sheets);
+    sheets.forEach((sheet, index) => { sheet.index = index + 1; });
+    const success = plans.every((plan) => plan.success);
+    const totalPieceAreaMm2 = plans.reduce((sum, plan) => sum + plan.totalPieceAreaMm2, 0);
+    const sheetCount = success ? sheets.length : null;
+    return {
+      ...options, success, sheets: success ? sheets : [], sheetCount, totalPieceAreaMm2,
+      totalSheetAreaMm2: options.sheetLengthMm * options.sheetWidthMm,
+      lowerBound: plans.reduce((sum, plan) => sum + plan.lowerBound, 0),
+      cutCount: plans.reduce((sum, plan) => sum + (plan.cutCount || 0), 0),
+      utilizationPercent: success ? totalPieceAreaMm2 / (sheetCount * options.sheetLengthMm * options.sheetWidthMm) * 100 : 0,
+      pieces: plans.flatMap((plan) => plan.pieces), warnings: plans.flatMap((plan) => plan.warnings),
+      explanation: ["Each material and thickness is packed on separate stock. The selected sheet dimensions and cutting gap apply to every material.", ...plans.flatMap((plan) => plan.explanation)],
+    };
+  }
   return { expandWoodPieces, normalizeWoodSheetOptions, calculateWoodSheetPlan };
 });

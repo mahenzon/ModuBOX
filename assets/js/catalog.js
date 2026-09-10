@@ -37,11 +37,24 @@
         unit: "H",
       },
     },
+    buildOptions: {
+      clearLid: { label: "Transparent lid", values: [false, true], defaultValue: false },
+      lidThicknessMm: { label: "Lid thickness", values: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12], defaultValue: 6, unit: "mm", when: { clearLid: { equals: true } } },
+      handle2H: { label: "2H handle", values: ["none", "fixed"], defaultValue: "none", when: { heightLevel: { equals: 2 } } },
+      lipStyle: { label: "Lid lip", values: ["standard", "thin"], defaultValue: "standard", help: "Thin lip: 6–8 boxes wide, lid 6–12 mm. Useful for the 2H handle and label." },
+      cornerFastening: { label: "Corner fastening", values: ["bolts", "wood-screws"], defaultValue: "bolts", help: "Direct wood screws use the dedicated screw corners for strong wood / plywood 9–12 mm thick. Use bolts and nuts for MDF or thinner wood." },
+      cornerScrewLengthMm: { label: "Corner screw length", values: [0, 12, 14, 16, 18], defaultValue: 0, unit: "mm", valueLabels: { 0: "Auto" }, when: { cornerFastening: { equals: "wood-screws" } }, help: "Auto is calculated for a flush head and 1 mm tip clearance. Choose another length after checking the actual screw and printed corner; a recessed head drives the tip deeper." },
+    },
+    screwCorners: {
+      printedWallMm: { 9: 8, 10: 7, 11: 8, 12: 7 },
+      passageDiameterMm: 3, countersinkDiameterMm: 7, screwsPerCase: 20,
+    },
+    lidBoltLengths: { 3: 10, 4: 10, 5: 12, 6: 12, 7: 14, 8: 14, 9: 16, 10: 16, 11: 18, 12: 18 },
     featureRules: {
       handle: {
         enabledWhen: { heightLevel: { min: 3 } },
         disabledReasonByHeight: {
-          2: "2H case has no handle by design.",
+          2: "2H case without a handle.",
         },
       },
     },
@@ -133,12 +146,31 @@
     ],
     printedPartRules: [
       {
+        id: "handle-2h", label: "Fixed handle set, 2H", printedBodies: 2,
+        when: { heightLevel: { equals: 2 }, handle2H: { equals: "fixed" } },
+        stlPathPattern: "Case Parts/Handles_2H/Handle_2H_{t}mm.stl",
+        note: "Static grip and backing plate; no M4 pivot bolts or nuts. Use the updated 2H front template.",
+      },
+      {
+        id: "label-2h", label: "Label, 2H", printedBodies: 1,
+        when: { heightLevel: { equals: 2 }, handle2H: { equals: "fixed" } },
+        stlPathPattern: "Case Parts/lables/Lable_2H.stl",
+        note: "Interchangeable label for the fixed handle. Thin lip provides additional finger clearance where available.",
+      },
+      {
         id: "corners",
+        when: { cornerFastening: { equals: "bolts" } },
         label: "Corners",
         printedBodies: 4,
         stlPathPattern: "Case Parts/corners/corners {H}H/Corners_{H}H_{t}mm.STL",
         bambuProjectPath: "Bambufiles/Corners_bambufile.3mf",
         note: "Corner set for selected height and material thickness.",
+      },
+      {
+        id: "screw-corners", label: "Corners for wood screws", printedBodies: 4,
+        when: { cornerFastening: { equals: "wood-screws" } },
+        stlPathPattern: "Case Parts/screw corners/screw corner_{H}H_{t}mm.STL",
+        note: "One STL contains all four corners. Five countersunk wood screws per corner, including the bottom. No captured nuts in these corners; no matching Bambu project supplied.",
       },
       {
         id: "hinges",
@@ -259,8 +291,8 @@
         item: "Nut (Nyloc) M3",
         unit: "pcs",
         quantityRules: [
-          { when: { heightLevel: { equals: 2 } }, quantity: 36 },
-          { when: { heightLevel: { min: 3 } }, quantity: 40 },
+          { when: { heightLevel: { equals: 2 } }, quantity: 40 },
+          { when: { heightLevel: { min: 3 } }, quantity: 44 },
         ],
         use: "Hex holes in printed parts.",
         search: "self locking nut M3, nyloc nut M3, DIN 985 M3",
@@ -280,7 +312,7 @@
         id: "m3-primary-countersunk",
         itemPattern: "Countersunk Bolt M3 x {length}",
         unit: "pcs",
-        quantity: 30,
+        quantity: 34,
         lengthByThickness: {
           6: 12,
           7: 14,
@@ -336,7 +368,7 @@
     notes: {
       stlVs3mf:
         "Use STL files as ready 3D model files, or use Bambu 3MF project files if you prefer preset print settings.",
-      noHandle2H: "2H case has no handle by design.",
+      noHandle2H: "Original 2H configuration without a handle. Select the new fixed handle to add it.",
     },
   };
 });
