@@ -1759,6 +1759,37 @@ function startBrowser(storage = new Map()) {
   return { context, elements, inputs, downloads, storage, set };
 }
 
+test("invalid laser clearance cannot freeze case displays or BOM downloads", async () => {
+  const browser = startBrowser();
+  const { context, elements, downloads, set } = browser;
+  set("widthBoxes", 8);
+  for (const invalid of ["-9", ""]) {
+    elements.holeClearanceMm.value = invalid;
+    elements.holeClearanceMm.fire("input");
+    set("widthBoxes", 6);
+    assert.match(elements.summary.innerHTML, /6 mm \/ 6 x 5 \/ 4H/);
+    assert.equal(context.WOODCASE_APP.getCurrentBom().configuration.widthBoxes, 6);
+    assert.equal(elements.model3d.bom.configuration.widthBoxes, 6);
+    assert.match(elements.preview.innerHTML, /6 × 5 cells/);
+    assert.match(elements.bom.innerHTML, /330 x 76/);
+    assert.match(elements.woodSheetResult.innerHTML, /330 x 76/);
+    assert.equal(elements.holeClearanceMm.attributes["aria-invalid"], "true");
+    const before = downloads.length;
+    elements.downloadDxfFull.fire("click");
+    elements.downloadDxfSeparate.fire("click");
+    assert.equal(downloads.length, before, "invalid clearance must still block both DXF exports");
+    elements.exportFormat.value = "json";
+    elements.exportFormat.fire("change");
+    assert.equal(JSON.parse(await downloads.at(-1).text()).configuration.widthBoxes, 6);
+    elements.holeClearanceMm.value = "0.2";
+    elements.holeClearanceMm.fire("input");
+    assert.equal(elements.holeClearanceMm.attributes["aria-invalid"], undefined);
+    elements.downloadDxfFull.fire("click");
+    assert.equal(downloads.length, before + 2, "valid correction restores DXF download");
+    set("widthBoxes", 8);
+  }
+});
+
 test("dependent controls match saved version-1 config through transitions and reload", () => {
   const browser = startBrowser();
   browser.set("heightLevel", 2);

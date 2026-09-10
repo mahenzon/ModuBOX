@@ -276,6 +276,11 @@
     const doc = document;
     const config = getConfigFromControls(doc);
     const bom = buildBom(config);
+    currentBom = bom;
+    setCurrentBom(bom);
+    renderSummary(bom.configuration, bom, doc);
+    renderBomTables(bom, doc);
+    renderWoodSheetCalculator(bom, doc);
     const status = doc.getElementById("dxfExportStatus");
     const exposeLaserError = doc.getElementById("laserCuttingTool")?.open !== false;
     let geometry;
@@ -286,6 +291,7 @@
     } catch (error) {
       currentPanelGeometry = null;
       currentLaserLayout = null;
+      renderPreview(bom.configuration, bom, null, doc);
       setControlValidity(doc, "holeClearanceMm", exposeLaserError);
       setDxfStatus(status, exposeLaserError ? `DXF export unavailable: ${error.message}` : "", exposeLaserError ? "error" : "");
       const laserResult = doc.getElementById("dxfLaserPreview");
@@ -295,13 +301,8 @@
       return;
     }
     setControlValidity(doc, "holeClearanceMm", false);
-    currentBom = bom;
     currentPanelGeometry = geometry;
-    setCurrentBom(bom);
-    renderSummary(bom.configuration, bom, doc);
     renderPreview(bom.configuration, bom, geometry, doc);
-    renderBomTables(bom, doc);
-    renderWoodSheetCalculator(bom, doc);
     const laserResult = doc.getElementById("dxfLaserPreview");
     try {
       currentLaserLayout = createFullDxfLayout(
