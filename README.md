@@ -10,6 +10,8 @@ ModuBOX Case Configurator is a browser-based planning tool for the [ModuBOX Wood
 
 An interactive 3D preview helps you understand the finished case before building it.
 
+You can also use a solid transparent lid (e.g. acrylic, polycarbonate) and a thin lip to fit label.
+
 ## DXF exports
 
 **DXF — Full** downloads one cut-only DXF per unique physical sheet layout plus a

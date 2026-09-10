@@ -65,16 +65,17 @@ Use relative asset paths. GitHub Pages serves the project from the `/ModuBOX/` r
 
 ## Domain invariants
 
-- Read supported values and defaults from `catalog.parameters`; do not duplicate them in renderers or HTML.
+- Read supported values and defaults from `catalog.parameters` and `catalog.buildOptions`; do not duplicate them in renderers or HTML.
 - Route configuration through `normalizeConfig()` and derived calculations through `buildBom()` or the focused core helpers.
 - Keep panel formulas, BOM rows, exports, 2D drawings, dimension callouts, sheet pieces, and the 3D model consistent.
 - The usable ModuBOX grid is `55 × 55 mm` per cell and belongs on the inside bottom.
-- A 2H case has no handle. Handle-dependent printed parts and hardware must follow catalog rules.
+- A 2H case can use the fixed handle or no handle; 3H–6H use the hinged handle. Handle-dependent parts, drilling and hardware follow the selected option.
 - Phase-2 drill geometry has six physical roles: front, back, left side, right side, lid, and bottom. All use the outside-face, lower-left, X-right, Y-up frame.
 - Preserve each hole family's base diameter. Apply the shared clearance once as a diametral adjustment; do not apply exporter-side laser kerf.
 - Full laser export ignores `Cut-through cuts only`, requires at least 0.10 mm nesting gap, and never mirrors completed panels.
 - Cutter-ready DXFs contain true circles on `CUT_HOLES_FIRST`, followed by closed outlines on `CUT_OUTLINES_LAST`, with no annotations or stock boundaries.
-- The recessed lid fits between taller side panels, rests on shorter front/back panels, and closes flush with the side-panel tops.
+- The lid rests on the front/back panels and fits between the sides. A transparent lid has independent thickness; it is flush with the side tops only when lid and body thickness match. Group sheet layouts by material and thickness.
+- Dedicated screw corners use 20 wood screws including four underneath. Omit corner through-holes in that mode; other attachment holes and machine hardware remain. Keep measured geometry separate from inferred screw-length suggestions.
 - Fastener manifests, rendered 3D fasteners, and BOM quantities must agree. `verifyFastenerAssembly()` intentionally fails on mismatches.
 - Full orbit includes underside views. Normalize angles; do not reintroduce pitch clamps in either detailed or fallback previews.
 - Compact sheet planning may rotate parts when enabled. Cut-through mode must remain guillotine-style, preserve kerf, group matching pieces where possible, and emit valid numbered edge-to-edge cuts.
